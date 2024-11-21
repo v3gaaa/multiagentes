@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using WebSocketSharp;
 using System.IO;
+using System;
 
 public class WebSocketClient : MonoBehaviour
 {
@@ -10,21 +11,38 @@ public class WebSocketClient : MonoBehaviour
     private string serverUrl = "ws://localhost:8765"; // URL del servidor WebSocket
     private Dictionary<int, Camera> surveillanceCameras;
     private GameObject drone;
-    private GameObject guard;
+    private Camera droneCamera;
     private Vector3[] patrolRoute;
+
+    // Message class to help with JSON serialization
+    [Serializable]
+    private class Message
+    {
+        public string type;
+        public object position;
+        public int camera_id;
+        public string image;
+    }
 
     private void Start()
     {
         // Inicialización de WebSocket
         ws = new WebSocket(serverUrl);
         ws.OnMessage += OnMessageReceived;
+        ws.OnError += OnError;
         ws.Connect();
 
         Debug.Log("Connected to WebSocket server");
 
         // Configuración inicial
         drone = GameObject.Find("drone");
-        guard = GameObject.Find("Guard");
+        droneCamera = drone.GetComponentInChildren<Camera>();
+        
+        if (droneCamera == null)
+        {
+            Debug.LogError("Drone camera not found!");
+        }
+
         InitializeCameras();
         InitializePatrolRoute();
 
@@ -40,8 +58,15 @@ public class WebSocketClient : MonoBehaviour
         for (int i = 0; i < 3; i++)
         {
             GameObject cameraObject = GameObject.Find($"Surveillance Camera ({i})");
-            Camera camera = cameraObject.GetComponentInChildren<Camera>();
-            surveillanceCameras.Add(i + 1, camera);
+            if (cameraObject != null)
+            {
+                Camera camera = cameraObject.GetComponentInChildren<Camera>();
+                surveillanceCameras.Add(i + 1, camera);
+            }
+            else
+            {
+                Debug.LogError($"Surveillance Camera ({i}) not found!");
+            }
         }
 
         Debug.Log("Cameras initialized");
@@ -72,8 +97,47 @@ public class WebSocketClient : MonoBehaviour
                 SendDronePosition(drone.transform.position);
                 Debug.Log($"Drone patrolling to {waypoint}");
 
+                // Capturar y enviar frame de la cámara del dron
+                SendDroneFrame();
+
                 yield return new WaitForSeconds(3); // Esperar antes de moverse al siguiente punto
             }
+        }
+    }
+
+    private void SendDroneFrame()
+    {
+        if (droneCamera == null)
+        {
+            Debug.LogError("Drone camera is null. Cannot capture frame.");
+            return;
+        }
+
+        // Capturar una imagen de la cámara del dron
+        RenderTexture renderTexture = new RenderTexture(960, 540, 24);
+        droneCamera.targetTexture = renderTexture;
+        Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+        droneCamera.Render();
+        RenderTexture.active = renderTexture;
+        texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+        texture.Apply();
+        droneCamera.targetTexture = null;
+        RenderTexture.active = null;
+
+        // Convertir la imagen a formato JPG
+        byte[] imageBytes = texture.EncodeToJPG();
+        Destroy(renderTexture);
+        Destroy(texture);
+
+        // Validar que los bytes no estén vacíos antes de enviar
+        if (imageBytes.Length > 0)
+        {
+            SendCameraFrame(4, imageBytes); // Usar ID 4 para la cámara del dron
+            Debug.Log("Sent frame from drone camera");
+        }
+        else
+        {
+            Debug.LogError("Failed to capture image from drone camera");
         }
     }
 
@@ -87,7 +151,7 @@ public class WebSocketClient : MonoBehaviour
                 Camera camera = kvp.Value;
 
                 // Capturar una imagen de la cámara
-                RenderTexture renderTexture = new RenderTexture(1920, 1080, 24);
+                RenderTexture renderTexture = new RenderTexture(960, 540, 24);
                 camera.targetTexture = renderTexture;
                 Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
                 camera.Render();
@@ -97,13 +161,21 @@ public class WebSocketClient : MonoBehaviour
                 camera.targetTexture = null;
                 RenderTexture.active = null;
 
-                // Guardar la imagen como bytes
+                // Convertir la imagen a formato JPG
                 byte[] imageBytes = texture.EncodeToJPG();
                 Destroy(renderTexture);
+                Destroy(texture);
 
-                // Enviar la imagen al servidor
-                SendCameraFrame(cameraId, imageBytes);
-                Debug.Log($"Sent frame from camera {cameraId}");
+                // Validar que los bytes no estén vacíos antes de enviar
+                if (imageBytes.Length > 0)
+                {
+                    SendCameraFrame(cameraId, imageBytes);
+                    Debug.Log($"Sent frame from camera {cameraId}");
+                }
+                else
+                {
+                    Debug.LogError($"Failed to capture image from camera {cameraId}");
+                }
             }
 
             yield return new WaitForSeconds(5); // Esperar antes de enviar el siguiente frame
@@ -114,13 +186,19 @@ public class WebSocketClient : MonoBehaviour
     {
         if (ws.ReadyState == WebSocketState.Open)
         {
-            var message = new
+            var message = new Message
             {
                 type = "drone_position",
                 position = new { x = position.x, y = position.y, z = position.z }
             };
 
-            ws.Send(JsonUtility.ToJson(message));
+            string jsonMessage = JsonUtility.ToJson(message);
+            Debug.Log($"Sending drone position: {jsonMessage}");
+            ws.Send(jsonMessage);
+        }
+        else
+        {
+            Debug.LogError("WebSocket is not open. Cannot send drone position.");
         }
     }
 
@@ -128,23 +206,31 @@ public class WebSocketClient : MonoBehaviour
     {
         if (ws.ReadyState == WebSocketState.Open)
         {
-            var message = new
+            var message = new Message
             {
                 type = "camera_frame",
                 camera_id = cameraId,
-                image = System.Convert.ToBase64String(imageBytes)
+                image = Convert.ToBase64String(imageBytes)
             };
 
-            ws.Send(JsonUtility.ToJson(message));
+            string jsonMessage = JsonUtility.ToJson(message);
+            Debug.Log($"Sending camera frame: {jsonMessage}");
+            ws.Send(jsonMessage);
+        }
+        else
+        {
+            Debug.LogError("WebSocket is not open. Cannot send camera frame.");
         }
     }
 
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
         Debug.Log($"Message received from server: {e.Data}");
+    }
 
-        // Procesar el mensaje recibido desde el servidor
-        // Aquí puedes implementar acciones basadas en los mensajes del servidor
+    private void OnError(object sender, WebSocketSharp.ErrorEventArgs e)
+    {
+        Debug.LogError($"WebSocket error: {e.Message}");
     }
 
     private void OnDestroy()

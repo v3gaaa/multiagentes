@@ -5,7 +5,14 @@ import asyncio
 import websockets
 import json
 import os
+import sys
 import base64
+
+# Añadir el directorio raíz del proyecto al Python Path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+sys.path.append(project_root)
+
 from Agents.Camera import Camera
 from Agents.Drone import Drone
 from Agents.Personnel import Personnel
@@ -26,33 +33,40 @@ drone = Drone(start_position=(14, 8, 8), boundaries=(0, 24, 0, 24))
 personnel = Personnel(control_station=(14, 0, 1))
 environment = Environment(dimensions=(24, 9, 24), cameras=cameras)
 
-# Manejo de WebSockets
-async def handler(websocket, path):
+async def handler(websocket):
     """
     Manejador principal para las conexiones WebSocket.
     """
-    print(f"Connection established: {path}")
+    print(f"Connection established")
     
     try:
         async for message in websocket:
-            # Procesar mensaje recibido
-            data = json.loads(message)
-            print(f"Received message: {data}")
+            # Validar si el mensaje es vacío
+            if not message.strip():
+                print("Received an empty message")
+                continue
+            
+            try:
+                # Procesar mensaje recibido
+                data = json.loads(message)
 
-            # Determinar acción basada en el tipo de mensaje
-            if data["type"] == "drone_position":
-                response = handle_drone_position(data)
-            elif data["type"] == "camera_alert":
-                response = handle_camera_alert(data)
-            elif data["type"] == "control_request":
-                response = handle_personnel_control(data)
-            elif data["type"] == "camera_frame":
-                response = await handle_camera_frame(data)
-            else:
-                response = {"status": "error", "message": "Unknown message type"}
+                # Determinar acción basada en el tipo de mensaje
+                if data.get("type") == "drone_position":
+                    response = handle_drone_position(data)
+                elif data.get("type") == "camera_alert":
+                    response = handle_camera_alert(data)
+                elif data.get("type") == "control_request":
+                    response = handle_personnel_control(data)
+                elif data.get("type") == "camera_frame":
+                    response = await handle_camera_frame(data)
+                else:
+                    response = {"status": "error", "message": "Unknown message type"}
 
-            # Enviar respuesta a Unity
-            await websocket.send(json.dumps(response))
+                # Enviar respuesta a Unity
+                await websocket.send(json.dumps(response))
+            except json.JSONDecodeError as e:
+                print(f"JSON decode error: {e}")
+                await websocket.send(json.dumps({"status": "error", "message": "Invalid JSON format"}))
 
     except websockets.ConnectionClosed:
         print("Connection closed")
@@ -115,7 +129,9 @@ async def handle_camera_frame(data):
         except Exception as e:
             print(f"Error saving frame from camera {camera_id}: {e}")
             return {"status": "error", "message": f"Failed to save frame from camera {camera_id}"}
-    return {"status": "error", "message": "Invalid camera frame data"}
+    else:
+        print(f"Invalid camera frame data received: {data}")
+        return {"status": "error", "message": "Invalid camera frame data"}
 
 async def start_server():
     """
@@ -123,6 +139,7 @@ async def start_server():
     """
     print("Starting WebSocket server...")
     async with websockets.serve(handler, "localhost", 8765):
+        print("Server started")
         await asyncio.Future()  # Mantiene el servidor corriendo
 
 if __name__ == "__main__":
