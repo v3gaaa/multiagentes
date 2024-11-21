@@ -8,13 +8,19 @@ using System;
 public class WebSocketClient : MonoBehaviour
 {
     private WebSocket ws;
-    private string serverUrl = "ws://localhost:8765"; // URL del servidor WebSocket
+    private string serverUrl = "ws://localhost:8765";
     private Dictionary<int, Camera> surveillanceCameras;
     private GameObject drone;
     private Camera droneCamera;
-    private Vector3[] patrolRoute;
+    private List<Vector3> patrolRoute;
+    private int currentWaypointIndex = 0;
+    
+    public float droneSpeed = 5f;
+    public float rotationSpeed = 90f;
+    public float cameraPanSpeed = 30f;
+    public float cameraTiltAngle = 30f; // Fixed tilt angle
+    private Vector3 warehouseCenter = new Vector3(12, 0, 12); // Assuming warehouse center
 
-    // Message class to help with JSON serialization
     [Serializable]
     private class Message
     {
@@ -26,7 +32,7 @@ public class WebSocketClient : MonoBehaviour
 
     private void Start()
     {
-        // Inicialización de WebSocket
+        // WebSocket initialization
         ws = new WebSocket(serverUrl);
         ws.OnMessage += OnMessageReceived;
         ws.OnError += OnError;
@@ -34,10 +40,9 @@ public class WebSocketClient : MonoBehaviour
 
         Debug.Log("Connected to WebSocket server");
 
-        // Configuración inicial
+        // Initial setup
         drone = GameObject.Find("drone");
         droneCamera = drone.GetComponentInChildren<Camera>();
-        
         if (droneCamera == null)
         {
             Debug.LogError("Drone camera not found!");
@@ -46,7 +51,7 @@ public class WebSocketClient : MonoBehaviour
         InitializeCameras();
         InitializePatrolRoute();
 
-        // Iniciar simulación
+        // Start simulation
         StartCoroutine(DronePatrol());
         StartCoroutine(SendCameraFrames());
     }
@@ -54,7 +59,6 @@ public class WebSocketClient : MonoBehaviour
     private void InitializeCameras()
     {
         surveillanceCameras = new Dictionary<int, Camera>();
-
         for (int i = 0; i < 3; i++)
         {
             GameObject cameraObject = GameObject.Find($"Surveillance Camera ({i})");
@@ -74,13 +78,13 @@ public class WebSocketClient : MonoBehaviour
 
     private void InitializePatrolRoute()
     {
-        // Definir una ruta de patrulla predefinida para el dron
-        patrolRoute = new Vector3[]
+        patrolRoute = new List<Vector3>
         {
-            new Vector3(5, 8, 5),
-            new Vector3(20, 8, 5),
-            new Vector3(20, 8, 20),
-            new Vector3(5, 8, 20)
+            new Vector3(4, 8, 4),
+            new Vector3(18, 8, 4),
+            new Vector3(18, 8, 18),
+            new Vector3(4, 8, 18),
+            new Vector3(10, 8, 10) // Center waypoint
         };
     }
 
@@ -88,56 +92,53 @@ public class WebSocketClient : MonoBehaviour
     {
         while (true)
         {
-            foreach (var waypoint in patrolRoute)
+            Vector3 targetWaypoint = patrolRoute[currentWaypointIndex];
+
+            // Move towards the waypoint
+            while (Vector3.Distance(drone.transform.position, targetWaypoint) > 0.1f)
             {
-                // Mover el dron a la siguiente posición
-                drone.transform.position = waypoint;
+                Vector3 direction = (targetWaypoint - drone.transform.position).normalized;
 
-                // Enviar posición del dron al servidor
+                // Smooth movement
+                drone.transform.position = Vector3.MoveTowards(drone.transform.position, targetWaypoint, droneSpeed * Time.deltaTime);
+
+                // Smooth rotation towards the waypoint
+                if (direction != Vector3.zero)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+                    drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+                }
+
+                // Adjust camera to focus on the warehouse center or areas of interest
+                FocusCameraOnRelevantArea();
+
+                // Send drone position periodically
                 SendDronePosition(drone.transform.position);
-                Debug.Log($"Drone patrolling to {waypoint}");
 
-                // Capturar y enviar frame de la cámara del dron
-                SendDroneFrame();
-
-                yield return new WaitForSeconds(3); // Esperar antes de moverse al siguiente punto
+                yield return null;
             }
+
+            // Move to next waypoint
+            currentWaypointIndex = (currentWaypointIndex + 1) % patrolRoute.Count;
+
+            // Short pause at waypoint
+            yield return new WaitForSeconds(1f);
         }
     }
 
-    private void SendDroneFrame()
+    private void FocusCameraOnRelevantArea()
     {
-        if (droneCamera == null)
+        if (droneCamera != null)
         {
-            Debug.LogError("Drone camera is null. Cannot capture frame.");
-            return;
-        }
+            // Calculate direction to the center of the warehouse or other relevant area
+            Vector3 focusPoint = warehouseCenter - drone.transform.position;
+            Quaternion targetCameraRotation = Quaternion.LookRotation(focusPoint, Vector3.up);
 
-        // Capturar una imagen de la cámara del dron
-        RenderTexture renderTexture = new RenderTexture(960, 540, 24);
-        droneCamera.targetTexture = renderTexture;
-        Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
-        droneCamera.Render();
-        RenderTexture.active = renderTexture;
-        texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
-        texture.Apply();
-        droneCamera.targetTexture = null;
-        RenderTexture.active = null;
+            // Tilt camera slightly downward
+            targetCameraRotation *= Quaternion.Euler(cameraTiltAngle, 0, 0);
 
-        // Convertir la imagen a formato JPG
-        byte[] imageBytes = texture.EncodeToJPG();
-        Destroy(renderTexture);
-        Destroy(texture);
-
-        // Validar que los bytes no estén vacíos antes de enviar
-        if (imageBytes.Length > 0)
-        {
-            SendCameraFrame(4, imageBytes); // Usar ID 4 para la cámara del dron
-            Debug.Log("Sent frame from drone camera");
-        }
-        else
-        {
-            Debug.LogError("Failed to capture image from drone camera");
+            // Smoothly rotate the camera to focus on the target area
+            droneCamera.transform.localRotation = Quaternion.RotateTowards(droneCamera.transform.localRotation, targetCameraRotation, cameraPanSpeed * Time.deltaTime);
         }
     }
 
@@ -150,7 +151,7 @@ public class WebSocketClient : MonoBehaviour
                 int cameraId = kvp.Key;
                 Camera camera = kvp.Value;
 
-                // Capturar una imagen de la cámara
+                // Capture an image from the camera
                 RenderTexture renderTexture = new RenderTexture(960, 540, 24);
                 camera.targetTexture = renderTexture;
                 Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
@@ -161,12 +162,10 @@ public class WebSocketClient : MonoBehaviour
                 camera.targetTexture = null;
                 RenderTexture.active = null;
 
-                // Convertir la imagen a formato JPG
                 byte[] imageBytes = texture.EncodeToJPG();
                 Destroy(renderTexture);
                 Destroy(texture);
 
-                // Validar que los bytes no estén vacíos antes de enviar
                 if (imageBytes.Length > 0)
                 {
                     SendCameraFrame(cameraId, imageBytes);
@@ -178,7 +177,7 @@ public class WebSocketClient : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(5); // Esperar antes de enviar el siguiente frame
+            yield return new WaitForSeconds(5f);
         }
     }
 
@@ -193,12 +192,7 @@ public class WebSocketClient : MonoBehaviour
             };
 
             string jsonMessage = JsonUtility.ToJson(message);
-            Debug.Log($"Sending drone position: {jsonMessage}");
             ws.Send(jsonMessage);
-        }
-        else
-        {
-            Debug.LogError("WebSocket is not open. Cannot send drone position.");
         }
     }
 
@@ -214,12 +208,7 @@ public class WebSocketClient : MonoBehaviour
             };
 
             string jsonMessage = JsonUtility.ToJson(message);
-            Debug.Log($"Sending camera frame: {jsonMessage}");
             ws.Send(jsonMessage);
-        }
-        else
-        {
-            Debug.LogError("WebSocket is not open. Cannot send camera frame.");
         }
     }
 

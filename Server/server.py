@@ -29,9 +29,9 @@ cameras = [
     Camera(id=3, position=(0, 8, 1))
 ]
 
-drone = Drone(start_position=(14, 8, 8), boundaries=(0, 24, 0, 24))
+drone = Drone(start_position=(14, 8, 8), boundaries=(0, 24, 0, 30))
 personnel = Personnel(control_station=(14, 0, 1))
-environment = Environment(dimensions=(24, 9, 24), cameras=cameras)
+environment = Environment(dimensions=(24, 9, 30), cameras=cameras)
 
 async def handler(websocket):
     """
