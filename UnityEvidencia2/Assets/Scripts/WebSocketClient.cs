@@ -11,6 +11,7 @@ public class WebSocketClient : MonoBehaviour
     private string serverUrl = "ws://localhost:8765";
     private Dictionary<int, Camera> surveillanceCameras;
     private GameObject drone;
+    private GameObject guard;
     private Camera droneCamera;
     private List<Vector3> patrolRoute;
     private int currentWaypointIndex = 0;
@@ -25,13 +26,28 @@ public class WebSocketClient : MonoBehaviour
     private class Message
     {
         public string type;
-        public object position;
+        public PositionData position;
         public int camera_id;
         public string image;
     }
 
+    [Serializable]
+    private class PositionData
+    {
+        public float x;
+        public float y;
+        public float z;
+    }
+
     private void Start()
     {
+        // Desactivar audio listeners adicionales
+        AudioListener[] audioListeners = FindObjectsOfType<AudioListener>();
+        for (int i = 1; i < audioListeners.Length; i++)
+        {
+            audioListeners[i].enabled = false;
+        }
+
         // WebSocket initialization
         ws = new WebSocket(serverUrl);
         ws.OnMessage += OnMessageReceived;
@@ -43,6 +59,8 @@ public class WebSocketClient : MonoBehaviour
         // Initial setup
         drone = GameObject.Find("drone");
         droneCamera = drone.GetComponentInChildren<Camera>();
+        guard = GameObject.Find("Guard");
+
         if (droneCamera == null)
         {
             Debug.LogError("Drone camera not found!");
@@ -54,6 +72,7 @@ public class WebSocketClient : MonoBehaviour
         // Start simulation
         StartCoroutine(DronePatrol());
         StartCoroutine(SendCameraFrames());
+        StartCoroutine(SendDroneCameraFrames());
     }
 
     private void InitializeCameras()
@@ -90,6 +109,9 @@ public class WebSocketClient : MonoBehaviour
 
     private IEnumerator DronePatrol()
     {
+        // Take off
+        TakeOff();
+
         while (true)
         {
             Vector3 targetWaypoint = patrolRoute[currentWaypointIndex];
@@ -113,7 +135,10 @@ public class WebSocketClient : MonoBehaviour
                 FocusCameraOnRelevantArea();
 
                 // Send drone position periodically
-                SendDronePosition(drone.transform.position);
+                if (Time.frameCount % 30 == 0) // Adjust the frequency as needed
+                {
+                    SendDronePosition(drone.transform.position);
+                }
 
                 yield return null;
             }
@@ -181,6 +206,42 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
+    private IEnumerator SendDroneCameraFrames()
+    {
+        while (true)
+        {
+            if (droneCamera != null)
+            {
+                // Capture an image from the drone camera
+                RenderTexture renderTexture = new RenderTexture(960, 540, 24);
+                droneCamera.targetTexture = renderTexture;
+                Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+                droneCamera.Render();
+                RenderTexture.active = renderTexture;
+                texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+                texture.Apply();
+                droneCamera.targetTexture = null;
+                RenderTexture.active = null;
+
+                byte[] imageBytes = texture.EncodeToJPG();
+                Destroy(renderTexture);
+                Destroy(texture);
+
+                if (imageBytes.Length > 0)
+                {
+                    SendDroneCameraFrame(imageBytes);
+                    Debug.Log("Sent frame from drone camera");
+                }
+                else
+                {
+                    Debug.LogError("Failed to capture image from drone camera");
+                }
+            }
+
+            yield return new WaitForSeconds(5f);
+        }
+    }
+
     private void SendDronePosition(Vector3 position)
     {
         if (ws.ReadyState == WebSocketState.Open)
@@ -188,10 +249,11 @@ public class WebSocketClient : MonoBehaviour
             var message = new Message
             {
                 type = "drone_position",
-                position = new { x = position.x, y = position.y, z = position.z }
+                position = new PositionData { x = position.x, y = position.y, z = position.z }
             };
 
             string jsonMessage = JsonUtility.ToJson(message);
+            Debug.Log($"Sending drone position: {jsonMessage}");
             ws.Send(jsonMessage);
         }
     }
@@ -212,9 +274,108 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
+    private void SendDroneCameraFrame(byte[] imageBytes)
+    {
+        if (ws.ReadyState == WebSocketState.Open)
+        {
+            var message = new Message
+            {
+                type = "drone_camera_frame",
+                image = Convert.ToBase64String(imageBytes)
+            };
+
+            string jsonMessage = JsonUtility.ToJson(message);
+            ws.Send(jsonMessage);
+        }
+    }
+
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
         Debug.Log($"Message received from server: {e.Data}");
+        var message = JsonUtility.FromJson<Message>(e.Data);
+
+        if (message.type == "alert")
+        {
+            // Handle alert from server
+            Vector3 alertPosition = new Vector3(
+                message.position.x,
+                message.position.y,
+                message.position.z
+            );
+
+            Debug.Log($"Anomaly detected at camera {message.camera_id}");
+            StartCoroutine(InvestigateAlert(alertPosition, message.camera_id));
+        }
+    }
+
+    private IEnumerator InvestigateAlert(Vector3 alertPosition, int cameraId)
+    {
+        Debug.Log($"Drone investigating anomaly detected at camera {cameraId}");
+
+        // Move to alert position
+        while (Vector3.Distance(drone.transform.position, alertPosition) > 0.1f)
+        {
+            Vector3 direction = (alertPosition - drone.transform.position).normalized;
+
+            // Smooth movement
+            drone.transform.position = Vector3.MoveTowards(drone.transform.position, alertPosition, droneSpeed * Time.deltaTime);
+
+            // Smooth rotation towards the alert position
+            if (direction != Vector3.zero)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+                drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            }
+
+            yield return null;
+        }
+
+        // Simulate investigation
+        Debug.Log("Investigating alert...");
+        yield return new WaitForSeconds(2f);
+
+        // Simulate detection result
+        bool isSuspicious = UnityEngine.Random.value > 0.5f;
+
+        if (isSuspicious)
+        {
+            Debug.Log("Suspicious activity detected. Alerting security personnel...");
+            SendAlertToSecurity(alertPosition);
+        }
+        else
+        {
+            Debug.Log("No suspicious activity found. Resuming patrol...");
+            StartCoroutine(DronePatrol());
+        }
+    }
+
+    private void SendAlertToSecurity(Vector3 position)
+    {
+        if (ws.ReadyState == WebSocketState.Open)
+        {
+            var message = new Message
+            {
+                type = "alert",
+                position = new PositionData { x = position.x, y = position.y, z = position.z }
+            };
+
+            string jsonMessage = JsonUtility.ToJson(message);
+            ws.Send(jsonMessage);
+        }
+    }
+
+    private void TakeOff()
+    {
+        Debug.Log("Drone taking off...");
+        // Simulate takeoff
+        drone.transform.position += new Vector3(0, 1, 0);
+    }
+
+    private void Land()
+    {
+        Debug.Log("Drone landing...");
+        // Simulate landing
+        drone.transform.position -= new Vector3(0, 1, 0);
     }
 
     private void OnError(object sender, WebSocketSharp.ErrorEventArgs e)

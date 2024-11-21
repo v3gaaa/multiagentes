@@ -59,6 +59,8 @@ async def handler(websocket):
                     response = handle_personnel_control(data)
                 elif data.get("type") == "camera_frame":
                     response = await handle_camera_frame(data)
+                elif data.get("type") == "drone_camera_frame":
+                    response = await handle_drone_camera_frame(data)
                 else:
                     response = {"status": "error", "message": "Unknown message type"}
 
@@ -79,10 +81,14 @@ def handle_drone_position(data):
     """
     position = data.get("position", None)
     if position:
-        if drone.is_within_boundaries(position):
-            drone.current_position = tuple(position)
-            return {"status": "success", "message": f"Drone position updated to {drone.current_position}"}
-        return {"status": "error", "message": "Position out of boundaries"}
+        try:
+            position_tuple = (float(position["x"]), float(position["y"]), float(position["z"]))
+            if drone.is_within_boundaries(position_tuple):
+                drone.current_position = position_tuple
+                return {"status": "success", "message": "Drone position updated"}
+            return {"status": "error", "message": "Position out of boundaries"}
+        except (KeyError, ValueError) as e:
+            return {"status": "error", "message": f"Invalid position data: {e}"}
     return {"status": "error", "message": "Invalid position data"}
 
 def handle_camera_alert(data):
@@ -132,6 +138,30 @@ async def handle_camera_frame(data):
     else:
         print(f"Invalid camera frame data received: {data}")
         return {"status": "error", "message": "Invalid camera frame data"}
+
+async def handle_drone_camera_frame(data):
+    """
+    Maneja los frames de la cámara del dron enviados desde Unity.
+    """
+    image_base64 = data.get("image", None)
+
+    if image_base64:
+        try:
+            # Decodificar la imagen base64 y guardar como archivo
+            image_data = base64.b64decode(image_base64)
+            file_path = os.path.join("images", "drone_camera.jpg")
+            with open(file_path, "wb") as img_file:
+                img_file.write(image_data)
+            
+            print(f"Frame from drone camera saved at {file_path}")
+            return {"status": "success", "message": "Frame from drone camera saved"}
+        except Exception as e:
+            print(f"Error saving frame from drone camera: {e}")
+            return {"status": "error", "message": "Failed to save frame from drone camera"}
+    else:
+        print(f"Invalid drone camera frame data received: {data}")
+        return {"status": "error", "message": "Invalid drone camera frame data"}
+
 
 async def start_server():
     """

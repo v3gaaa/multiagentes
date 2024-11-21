@@ -1,5 +1,4 @@
-# Camera.py
-# Este agente representa una cámara fija en el entorno. Es un agente reactivo que detecta movimiento o actividades sospechosas.
+import random
 
 class Camera:
     def __init__(self, id, position):
@@ -18,7 +17,6 @@ class Camera:
         Simula la detección de movimiento usando valores arbitrarios.
         Aquí debería integrarse el modelo de visión computacional (como YOLO).
         """
-        import random
         self.certainty = random.uniform(0.0, 1.0)  # Generar certeza aleatoria
         
         if self.certainty > 0.5:  # Activar alerta si la certeza es mayor al umbral
