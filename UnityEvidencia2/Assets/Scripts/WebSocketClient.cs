@@ -51,6 +51,14 @@ public class WebSocketClient : MonoBehaviour
         float step = droneSpeed * Time.deltaTime;
         drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
 
+        // Ajustar la rotación del dron
+        Vector3 direction = (target - drone.transform.position).normalized;
+        if (direction != Vector3.zero)
+        {
+            Quaternion toRotation = Quaternion.LookRotation(direction, Vector3.up);
+            drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, toRotation, step * 100);
+        }
+
         if (Vector3.Distance(drone.transform.position, target) < 0.1f)
         {
             currentWaypointIndex++;
@@ -105,7 +113,16 @@ public class WebSocketClient : MonoBehaviour
         patrolRoute = new List<Vector3>
         {
             new Vector3(14, 8, 8),
+            new Vector3(16, 8, 10),
+            new Vector3(18, 8, 12),
+            new Vector3(20, 8, 14),
+            new Vector3(22, 8, 16),
             new Vector3(20, 8, 20),
+            new Vector3(18, 8, 18),
+            new Vector3(16, 8, 16),
+            new Vector3(14, 8, 14),
+            new Vector3(12, 8, 12),
+            new Vector3(10, 8, 10),
             new Vector3(8, 8, 8)
         };
     }
