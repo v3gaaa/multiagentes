@@ -1,44 +1,50 @@
-# Personnel.py
-# Este agente representa al personal de seguridad. Es un agente BDI (Belief-Desire-Intention).
+import json
+
 
 class Personnel:
     def __init__(self, control_station):
-        """
-        Inicializa el personal de seguridad.
-        :param control_station: Posición de la estación de control (x, y, z)
-        """
-        self.in_control = False  # Indica si el personal está controlando el dron
         self.control_station = control_station
+        self.drone_control = False
 
-    def take_control(self, drone, certainty):
+    def take_control_of_drone(self, drone):
         """
-        Simula el proceso de tomar el control del dron.
-        :param drone: Instancia del dron a controlar.
-        :param certainty: Certeza proporcionada por la cámara o el dron.
+        Toma control del dron.
+        :param drone: Objeto del dron.
         """
-        if self.is_at_control_station(drone.current_position):
-            print(f"Taking control of the drone with certainty: {certainty}")
-            self.in_control = True
+        self.drone_control = True
+        print("Personnel has taken control of the drone.")
 
-            # Simulación de evaluación
-            is_dangerous = certainty > 0.7
-            if is_dangerous:
-                print("Threat confirmed. Triggering alarm.")
-                self.trigger_alarm()
-            else:
-                print("False alarm. Returning drone to patrol.")
-                drone.patrol([drone.current_position])  # Retomar patrulla
+    def release_control_of_drone(self, drone):
+        """
+        Libera el control del dron.
+        :param drone: Objeto del dron.
+        """
+        self.drone_control = False
+        print("Personnel has released control of the drone.")
+
+    def handle_alert(self, websocket, alert_data):
+        """
+        Maneja una alerta recibida.
+        :param websocket: WebSocket de comunicación.
+        :param alert_data: Datos de la alerta.
+        """
+        print(f"Handling alert: {alert_data}")
+        if self.assess_threat(alert_data["anomalies"]):
+            print("ALERT! Sending alarm signal.")
+            alert_message = {"type": "alarm", "status": "ALERT"}
+            websocket.send(json.dumps(alert_message))
         else:
-            print("Guard not at control station. Cannot take control.")
+            print("False alarm. Resuming normal operations.")
+            alert_message = {"type": "alarm", "status": "FALSE_ALARM"}
+            websocket.send(json.dumps(alert_message))
 
-    def trigger_alarm(self):
-        """Simula el disparo de una alarma."""
-        print("Alarm triggered! Security notified.")
-
-    def is_at_control_station(self, position):
+    def assess_threat(self, anomalies):
         """
-        Verifica si el guardia está en la estación de control.
-        :param position: Posición actual del dron.
-        :return: True si está en la estación, False si no.
+        Evalúa si las anomalías representan una amenaza real.
+        :param anomalies: Lista de anomalías detectadas.
+        :return: True si es una amenaza, False si no.
         """
-        return position == self.control_station
+        for anomaly in anomalies:
+            if anomaly["confidence"] > 0.8:
+                return True
+        return False

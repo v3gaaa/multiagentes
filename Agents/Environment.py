@@ -1,23 +1,16 @@
-# Environment.py
-# Representa el entorno de simulación. Es un entorno discreto y parcialmente observable.
-
 class Environment:
-    def __init__(self, dimensions, cameras):
-        """
-        Inicializa el entorno.
-        :param dimensions: Dimensiones del entorno (x, y, z).
-        :param cameras: Lista de cámaras en el entorno.
-        """
-        self.dimensions = dimensions  # (x_max, y_max, z_max)
-        self.cameras = cameras  # Lista de instancias de Camera
+    def __init__(self, boundaries, cameras, drone, personnel):
+        self.boundaries = boundaries
+        self.cameras = cameras
+        self.drone = drone
+        self.personnel = personnel
 
-    def get_alerts(self):
+    def is_within_boundaries(self, position):
         """
-        Simula la recopilación de alertas de todas las cámaras.
+        Verifica si una posición está dentro de los límites del almacén.
+        :param position: Coordenadas (x, y, z).
+        :return: True si está dentro, False si no.
         """
-        alerts = []
-        for camera in self.cameras:
-            alert = camera.detect_movement()
-            if alert:
-                alerts.append(alert)
-        return alerts
+        x, y, z = position
+        x_min, x_max, y_min, y_max, z_min, z_max = self.boundaries
+        return x_min <= x <= x_max and y_min <= y <= y_max and z_min <= z <= z_max

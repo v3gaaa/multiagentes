@@ -1,12 +1,9 @@
-# server.py
-# Este archivo maneja la comunicación entre Unity y el entorno/agentes en Python usando WebSockets.
-
 import asyncio
 import websockets
 import json
+import base64
 import os
 import sys
-import base64
 
 # Añadir el directorio raíz del proyecto al Python Path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,150 +15,58 @@ from Agents.Drone import Drone
 from Agents.Personnel import Personnel
 from Agents.Environment import Environment
 
-# Asegúrate de que la carpeta `images` exista
-if not os.path.exists("images"):
-    os.makedirs("images")
 
-# Configuración inicial: Cámaras, Dron, Guardia y Entorno
+# Inicialización de los agentes y entorno
 cameras = [
-    Camera(id=1, position=(23.5, 8, 29)),
-    Camera(id=2, position=(23.5, 8, 0)),
-    Camera(id=3, position=(0, 8, 1))
+    Camera(camera_id=1, position={"x": 23.5, "y": 8, "z": 29}),
+    Camera(camera_id=2, position={"x": 23.5, "y": 8, "z": 0}),
+    Camera(camera_id=3, position={"x": 0, "y": 8, "z": 1}),
 ]
 
-drone = Drone(start_position=(14, 8, 8), boundaries=(0, 24, 0, 30))
-personnel = Personnel(control_station=(14, 0, 1))
-environment = Environment(dimensions=(24, 9, 30), cameras=cameras)
+drone = Drone(position={"x": 16, "y": 0, "z": 1}, patrol_route=[
+    {"x": 14, "y": 8, "z": 8}, {"x": 20, "y": 8, "z": 20}, {"x": 8, "y": 8, "z": 8}
+])
 
+personnel = Personnel(control_station={"x": 14, "y": 0, "z": 1})
+
+environment = Environment(
+    boundaries=(0, 24, 0, 9, 0, 30),
+    cameras=cameras,
+    drone=drone,
+    personnel=personnel,
+)
+
+# Manejo de conexiones y mensajes
 async def handler(websocket):
-    """
-    Manejador principal para las conexiones WebSocket.
-    """
-    print(f"Connection established")
-    
+    print(f"Connection established with {websocket.remote_address}")
     try:
         async for message in websocket:
-            # Validar si el mensaje es vacío
-            if not message.strip():
-                print("Received an empty message")
-                continue
-            
-            try:
-                # Procesar mensaje recibido
-                data = json.loads(message)
+            data = json.loads(message)
+            message_type = data.get("type")
 
-                # Determinar acción basada en el tipo de mensaje
-                if data.get("type") == "drone_position":
-                    response = handle_drone_position(data)
-                elif data.get("type") == "camera_alert":
-                    response = handle_camera_alert(data)
-                elif data.get("type") == "control_request":
-                    response = handle_personnel_control(data)
-                elif data.get("type") == "camera_frame":
-                    response = await handle_camera_frame(data)
-                elif data.get("type") == "drone_camera_frame":
-                    response = await handle_drone_camera_frame(data)
-                else:
-                    response = {"status": "error", "message": "Unknown message type"}
+            if message_type == "camera_frame":
+                camera_id = data["camera_id"]
+                image_data = base64.b64decode(data["image"])
+                for camera in cameras:
+                    if camera.camera_id == camera_id:
+                        anomalies = camera.process_image(data["image"])
+                        if anomalies:
+                            camera.alert_drone(websocket, anomalies)
 
-                # Enviar respuesta a Unity
-                await websocket.send(json.dumps(response))
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error: {e}")
-                await websocket.send(json.dumps({"status": "error", "message": "Invalid JSON format"}))
+            elif message_type == "drone_camera_frame":
+                image_data = base64.b64decode(data["image"])
+                drone.investigate_area(websocket, data["image"])
+
+            elif message_type == "manual_control":
+                if data["action"] == "take_control":
+                    personnel.take_control_of_drone(drone)
+                elif data["action"] == "release_control":
+                    personnel.release_control_of_drone(drone)
 
     except websockets.ConnectionClosed:
-        print("Connection closed")
+        print(f"Connection closed with {websocket.remote_address}")
     except Exception as e:
         print(f"Error: {e}")
-
-def handle_drone_position(data):
-    """
-    Maneja actualizaciones de posición del dron.
-    """
-    position = data.get("position", None)
-    if position:
-        try:
-            position_tuple = (float(position["x"]), float(position["y"]), float(position["z"]))
-            if drone.is_within_boundaries(position_tuple):
-                drone.current_position = position_tuple
-                return {"status": "success", "message": "Drone position updated"}
-            return {"status": "error", "message": "Position out of boundaries"}
-        except (KeyError, ValueError) as e:
-            return {"status": "error", "message": f"Invalid position data: {e}"}
-    return {"status": "error", "message": "Invalid position data"}
-
-def handle_camera_alert(data):
-    """
-    Maneja alertas enviadas por las cámaras.
-    """
-    camera_id = data.get("camera_id", None)
-    certainty = data.get("certainty", None)
-    position = data.get("position", None)
-
-    if camera_id and certainty and position:
-        print(f"Camera {camera_id} detected movement at {position} with certainty {certainty}")
-        is_dangerous = drone.investigate(position, certainty)  # Dron investiga el área
-        return {"status": "success", "danger": is_dangerous}
-    return {"status": "error", "message": "Invalid camera alert data"}
-
-def handle_personnel_control(data):
-    """
-    Maneja las solicitudes de control por parte del personal de seguridad.
-    """
-    certainty = data.get("certainty", None)
-    if certainty is not None:
-        personnel.take_control(drone, certainty)
-        return {"status": "success", "message": "Personnel took control"}
-    return {"status": "error", "message": "Invalid control request"}
-
-async def handle_camera_frame(data):
-    """
-    Maneja los frames de las cámaras enviados desde Unity.
-    """
-    camera_id = data.get("camera_id", None)
-    image_base64 = data.get("image", None)
-
-    if camera_id and image_base64:
-        try:
-            # Decodificar la imagen base64 y guardar como archivo
-            image_data = base64.b64decode(image_base64)
-            file_path = os.path.join("images", f"camera_{camera_id}.jpg")
-            with open(file_path, "wb") as img_file:
-                img_file.write(image_data)
-            
-            print(f"Frame from camera {camera_id} saved at {file_path}")
-            return {"status": "success", "message": f"Frame from camera {camera_id} saved"}
-        except Exception as e:
-            print(f"Error saving frame from camera {camera_id}: {e}")
-            return {"status": "error", "message": f"Failed to save frame from camera {camera_id}"}
-    else:
-        print(f"Invalid camera frame data received: {data}")
-        return {"status": "error", "message": "Invalid camera frame data"}
-
-async def handle_drone_camera_frame(data):
-    """
-    Maneja los frames de la cámara del dron enviados desde Unity.
-    """
-    image_base64 = data.get("image", None)
-
-    if image_base64:
-        try:
-            # Decodificar la imagen base64 y guardar como archivo
-            image_data = base64.b64decode(image_base64)
-            file_path = os.path.join("images", "drone_camera.jpg")
-            with open(file_path, "wb") as img_file:
-                img_file.write(image_data)
-            
-            print(f"Frame from drone camera saved at {file_path}")
-            return {"status": "success", "message": "Frame from drone camera saved"}
-        except Exception as e:
-            print(f"Error saving frame from drone camera: {e}")
-            return {"status": "error", "message": "Failed to save frame from drone camera"}
-    else:
-        print(f"Invalid drone camera frame data received: {data}")
-        return {"status": "error", "message": "Invalid drone camera frame data"}
-
 
 async def start_server():
     """
@@ -174,3 +79,6 @@ async def start_server():
 
 if __name__ == "__main__":
     asyncio.run(start_server())
+
+
+

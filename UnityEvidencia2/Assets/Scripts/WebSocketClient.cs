@@ -15,156 +15,173 @@ public class WebSocketClient : MonoBehaviour
     private Camera droneCamera;
     private List<Vector3> patrolRoute;
     private int currentWaypointIndex = 0;
-    
+    private bool isDroneControlled = false;
+    private bool isInvestigating = false;
+    private Vector3 landingStation = new Vector3(16, 0, 1);
+    private Vector3 controlStation = new Vector3(14, 0, 1);
+
     public float droneSpeed = 5f;
-    public float rotationSpeed = 90f;
-    public float cameraPanSpeed = 30f;
-    public float cameraTiltAngle = 30f; // Fixed tilt angle
-    private Vector3 warehouseCenter = new Vector3(12, 0, 12); // Assuming warehouse center
-
-    [Serializable]
-    private class Message
-    {
-        public string type;
-        public PositionData position;
-        public int camera_id;
-        public string image;
-    }
-
-    [Serializable]
-    private class PositionData
-    {
-        public float x;
-        public float y;
-        public float z;
-    }
+    public float guardSpeed = 3f;
 
     private void Start()
     {
-        // Desactivar audio listeners adicionales
-        AudioListener[] audioListeners = FindObjectsOfType<AudioListener>();
-        for (int i = 1; i < audioListeners.Length; i++)
+        EnsureSingleAudioListener();
+        InitializeComponents();
+        ConnectWebSocket();
+        StartCoroutine(SendCameraFrames());
+        StartCoroutine(SendDroneCameraFrames());
+    }
+
+    private void Update()
+    {
+        if (!isDroneControlled && !isInvestigating)
         {
-            audioListeners[i].enabled = false;
+            PatrolDrone();
+        }
+    }
+
+    private void PatrolDrone()
+    {
+        if (currentWaypointIndex >= patrolRoute.Count)
+        {
+            currentWaypointIndex = 0; // Reset patrol
         }
 
-        // WebSocket initialization
-        ws = new WebSocket(serverUrl);
-        ws.OnMessage += OnMessageReceived;
-        ws.OnError += OnError;
-        ws.Connect();
+        Vector3 target = patrolRoute[currentWaypointIndex];
+        float step = droneSpeed * Time.deltaTime;
+        drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
 
-        Debug.Log("Connected to WebSocket server");
+        if (Vector3.Distance(drone.transform.position, target) < 0.1f)
+        {
+            currentWaypointIndex++;
+        }
+    }
 
-        // Initial setup
+    private void InitializeComponents()
+    {
         drone = GameObject.Find("drone");
         droneCamera = drone.GetComponentInChildren<Camera>();
         guard = GameObject.Find("Guard");
 
         if (droneCamera == null)
-        {
             Debug.LogError("Drone camera not found!");
-        }
 
         InitializeCameras();
         InitializePatrolRoute();
 
-        // Start simulation
-        StartCoroutine(DronePatrol());
-        StartCoroutine(SendCameraFrames());
-        StartCoroutine(SendDroneCameraFrames());
+        // Set initial positions
+        drone.transform.position = landingStation;
+        guard.transform.position = new Vector3(11, 0, 8);
     }
 
     private void InitializeCameras()
     {
         surveillanceCameras = new Dictionary<int, Camera>();
-        for (int i = 0; i < 3; i++)
+        Vector3[] cameraPositions = new Vector3[]
+        {
+            new Vector3(23.5f, 8f, 29f),
+            new Vector3(23.5f, 8f, 0f),
+            new Vector3(0f, 8f, 1f)
+        };
+
+        for (int i = 0; i < cameraPositions.Length; i++)
         {
             GameObject cameraObject = GameObject.Find($"Surveillance Camera ({i})");
             if (cameraObject != null)
             {
                 Camera camera = cameraObject.GetComponentInChildren<Camera>();
                 surveillanceCameras.Add(i + 1, camera);
+                cameraObject.transform.position = cameraPositions[i];
             }
             else
             {
                 Debug.LogError($"Surveillance Camera ({i}) not found!");
             }
         }
-
-        Debug.Log("Cameras initialized");
     }
 
     private void InitializePatrolRoute()
     {
         patrolRoute = new List<Vector3>
         {
-            new Vector3(4, 8, 4),
-            new Vector3(18, 8, 4),
-            new Vector3(18, 8, 18),
-            new Vector3(4, 8, 18),
-            new Vector3(10, 8, 10) // Center waypoint
+            new Vector3(14, 8, 8),
+            new Vector3(20, 8, 20),
+            new Vector3(8, 8, 8)
         };
     }
 
-    private IEnumerator DronePatrol()
+    private void ConnectWebSocket()
     {
-        // Take off
-        TakeOff();
+        ws = new WebSocket(serverUrl);
+        ws.OnMessage += OnMessageReceived;
+        ws.OnError += OnError;
+        ws.Connect();
+        Debug.Log("Connected to WebSocket server");
+    }
 
-        while (true)
+    private void OnMessageReceived(object sender, MessageEventArgs e)
+    {
+        var data = JsonUtility.FromJson<Message>(e.Data);
+        if (data.type == "camera_alert")
         {
-            Vector3 targetWaypoint = patrolRoute[currentWaypointIndex];
-
-            // Move towards the waypoint
-            while (Vector3.Distance(drone.transform.position, targetWaypoint) > 0.1f)
-            {
-                Vector3 direction = (targetWaypoint - drone.transform.position).normalized;
-
-                // Smooth movement
-                drone.transform.position = Vector3.MoveTowards(drone.transform.position, targetWaypoint, droneSpeed * Time.deltaTime);
-
-                // Smooth rotation towards the waypoint
-                if (direction != Vector3.zero)
-                {
-                    Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
-                    drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-                }
-
-                // Adjust camera to focus on the warehouse center or areas of interest
-                FocusCameraOnRelevantArea();
-
-                // Send drone position periodically
-                if (Time.frameCount % 30 == 0) // Adjust the frequency as needed
-                {
-                    SendDronePosition(drone.transform.position);
-                }
-
-                yield return null;
-            }
-
-            // Move to next waypoint
-            currentWaypointIndex = (currentWaypointIndex + 1) % patrolRoute.Count;
-
-            // Short pause at waypoint
-            yield return new WaitForSeconds(1f);
+            Vector3 target = new Vector3(data.position.x, data.position.y, data.position.z);
+            isInvestigating = true;
+            MoveDroneTo(target);
+        }
+        else if (data.type == "alarm")
+        {
+            Debug.Log(data.status == "ALERT" ? "ALERTA" : "FALSA ALARMA");
         }
     }
 
-    private void FocusCameraOnRelevantArea()
+    private void MoveDroneTo(Vector3 target)
+    {
+        StopAllCoroutines(); // Stop patrol
+        StartCoroutine(MoveDrone(target));
+    }
+
+    private IEnumerator MoveDrone(Vector3 target)
+    {
+        while (Vector3.Distance(drone.transform.position, target) > 0.1f)
+        {
+            float step = droneSpeed * Time.deltaTime;
+            drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
+            yield return null;
+        }
+
+        // Simulate investigation
+        yield return new WaitForSeconds(5f);
+
+        // Notify server to analyze drone image
+        byte[] droneImageBytes = CaptureDroneCameraFrame();
+        SendDroneCameraFrame(droneImageBytes);
+
+        isInvestigating = false;
+    }
+
+    private byte[] CaptureDroneCameraFrame()
     {
         if (droneCamera != null)
         {
-            // Calculate direction to the center of the warehouse or other relevant area
-            Vector3 focusPoint = warehouseCenter - drone.transform.position;
-            Quaternion targetCameraRotation = Quaternion.LookRotation(focusPoint, Vector3.up);
+            RenderTexture renderTexture = new RenderTexture(960, 540, 24);
+            droneCamera.targetTexture = renderTexture;
+            Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+            droneCamera.Render();
+            RenderTexture.active = renderTexture;
+            texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+            texture.Apply();
+            droneCamera.targetTexture = null;
+            RenderTexture.active = null;
 
-            // Tilt camera slightly downward
-            targetCameraRotation *= Quaternion.Euler(cameraTiltAngle, 0, 0);
+            byte[] imageBytes = texture.EncodeToJPG();
+            Destroy(renderTexture);
+            Destroy(texture);
 
-            // Smoothly rotate the camera to focus on the target area
-            droneCamera.transform.localRotation = Quaternion.RotateTowards(droneCamera.transform.localRotation, targetCameraRotation, cameraPanSpeed * Time.deltaTime);
+            return imageBytes;
         }
+
+        Debug.LogError("Drone camera is null! Unable to capture frame.");
+        return null;
     }
 
     private IEnumerator SendCameraFrames()
@@ -210,51 +227,13 @@ public class WebSocketClient : MonoBehaviour
     {
         while (true)
         {
-            if (droneCamera != null)
+            byte[] imageBytes = CaptureDroneCameraFrame();
+            if (imageBytes != null)
             {
-                // Capture an image from the drone camera
-                RenderTexture renderTexture = new RenderTexture(960, 540, 24);
-                droneCamera.targetTexture = renderTexture;
-                Texture2D texture = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
-                droneCamera.Render();
-                RenderTexture.active = renderTexture;
-                texture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
-                texture.Apply();
-                droneCamera.targetTexture = null;
-                RenderTexture.active = null;
-
-                byte[] imageBytes = texture.EncodeToJPG();
-                Destroy(renderTexture);
-                Destroy(texture);
-
-                if (imageBytes.Length > 0)
-                {
-                    SendDroneCameraFrame(imageBytes);
-                    Debug.Log("Sent frame from drone camera");
-                }
-                else
-                {
-                    Debug.LogError("Failed to capture image from drone camera");
-                }
+                SendDroneCameraFrame(imageBytes);
             }
 
             yield return new WaitForSeconds(5f);
-        }
-    }
-
-    private void SendDronePosition(Vector3 position)
-    {
-        if (ws.ReadyState == WebSocketState.Open)
-        {
-            var message = new Message
-            {
-                type = "drone_position",
-                position = new PositionData { x = position.x, y = position.y, z = position.z }
-            };
-
-            string jsonMessage = JsonUtility.ToJson(message);
-            Debug.Log($"Sending drone position: {jsonMessage}");
-            ws.Send(jsonMessage);
         }
     }
 
@@ -289,106 +268,31 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
-    private void OnMessageReceived(object sender, MessageEventArgs e)
-    {
-        Debug.Log($"Message received from server: {e.Data}");
-        var message = JsonUtility.FromJson<Message>(e.Data);
-
-        if (message.type == "alert")
-        {
-            // Handle alert from server
-            Vector3 alertPosition = new Vector3(
-                message.position.x,
-                message.position.y,
-                message.position.z
-            );
-
-            Debug.Log($"Anomaly detected at camera {message.camera_id}");
-            StartCoroutine(InvestigateAlert(alertPosition, message.camera_id));
-        }
-    }
-
-    private IEnumerator InvestigateAlert(Vector3 alertPosition, int cameraId)
-    {
-        Debug.Log($"Drone investigating anomaly detected at camera {cameraId}");
-
-        // Move to alert position
-        while (Vector3.Distance(drone.transform.position, alertPosition) > 0.1f)
-        {
-            Vector3 direction = (alertPosition - drone.transform.position).normalized;
-
-            // Smooth movement
-            drone.transform.position = Vector3.MoveTowards(drone.transform.position, alertPosition, droneSpeed * Time.deltaTime);
-
-            // Smooth rotation towards the alert position
-            if (direction != Vector3.zero)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
-                drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-            }
-
-            yield return null;
-        }
-
-        // Simulate investigation
-        Debug.Log("Investigating alert...");
-        yield return new WaitForSeconds(2f);
-
-        // Simulate detection result
-        bool isSuspicious = UnityEngine.Random.value > 0.5f;
-
-        if (isSuspicious)
-        {
-            Debug.Log("Suspicious activity detected. Alerting security personnel...");
-            SendAlertToSecurity(alertPosition);
-        }
-        else
-        {
-            Debug.Log("No suspicious activity found. Resuming patrol...");
-            StartCoroutine(DronePatrol());
-        }
-    }
-
-    private void SendAlertToSecurity(Vector3 position)
-    {
-        if (ws.ReadyState == WebSocketState.Open)
-        {
-            var message = new Message
-            {
-                type = "alert",
-                position = new PositionData { x = position.x, y = position.y, z = position.z }
-            };
-
-            string jsonMessage = JsonUtility.ToJson(message);
-            ws.Send(jsonMessage);
-        }
-    }
-
-    private void TakeOff()
-    {
-        Debug.Log("Drone taking off...");
-        // Simulate takeoff
-        drone.transform.position += new Vector3(0, 1, 0);
-    }
-
-    private void Land()
-    {
-        Debug.Log("Drone landing...");
-        // Simulate landing
-        drone.transform.position -= new Vector3(0, 1, 0);
-    }
-
     private void OnError(object sender, WebSocketSharp.ErrorEventArgs e)
     {
-        Debug.LogError($"WebSocket error: {e.Message}");
+        Debug.LogError($"WebSocket Error: {e.Message}");
     }
 
-    private void OnDestroy()
+    private void EnsureSingleAudioListener()
     {
-        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        AudioListener[] audioListeners = FindObjectsOfType<AudioListener>();
+        if (audioListeners.Length > 1)
         {
-            ws.Close();
-            Debug.Log("WebSocket closed");
+            for (int i = 1; i < audioListeners.Length; i++)
+            {
+                audioListeners[i].enabled = false;
+            }
+            Debug.LogWarning("Multiple AudioListeners found. Disabled all except one.");
         }
+    }
+
+    [Serializable]
+    private class Message
+    {
+        public string type;
+        public int camera_id;
+        public string image;
+        public Vector3 position;
+        public string status;
     }
 }

@@ -1,30 +1,40 @@
-import random
+import os
+import base64
+import json
+from YOLO.main import detect_anomalies
+
 
 class Camera:
-    def __init__(self, id, position):
-        """
-        Inicializa la cámara con un ID único y una posición fija en el entorno.
-        :param id: ID único de la cámara
-        :param position: Posición fija de la cámara en el espacio (x, y, z)
-        """
-        self.id = id
+    def __init__(self, camera_id, position):
+        self.camera_id = camera_id
         self.position = position
-        self.certainty = 0.0  # Certeza inicial de la detección
-        self.alert_triggered = False
 
-    def detect_movement(self):
+    def process_image(self, image_data):
         """
-        Simula la detección de movimiento usando valores arbitrarios.
-        Aquí debería integrarse el modelo de visión computacional (como YOLO).
+        Procesa una imagen recibida desde Unity.
+        :param image_data: Imagen en formato base64.
+        :return: Lista de anomalías detectadas.
         """
-        self.certainty = random.uniform(0.0, 1.0)  # Generar certeza aleatoria
-        
-        if self.certainty > 0.5:  # Activar alerta si la certeza es mayor al umbral
-            self.alert_triggered = True
-            print(f"Camera {self.id}: Movement detected at {self.position} with certainty {self.certainty}.")
-            return {
-                "id": self.id,
+        image_path = f"images/camera_{self.camera_id}.jpg"
+        with open(image_path, "wb") as img_file:
+            img_file.write(base64.b64decode(image_data))
+
+        # Detectar anomalías con YOLO
+        anomalies = detect_anomalies(f"camera_{self.camera_id}.jpg")
+        return anomalies
+
+    def alert_drone(self, websocket, anomalies):
+        """
+        Envía una alerta al dron si se detectan anomalías.
+        :param websocket: WebSocket de comunicación.
+        :param anomalies: Lista de anomalías detectadas.
+        """
+        if anomalies:
+            alert_message = {
+                "type": "camera_alert",
+                "camera_id": self.camera_id,
+                "anomalies": anomalies,
                 "position": self.position,
-                "certainty": self.certainty
             }
-        return None
+            websocket.send(json.dumps(alert_message))
+            print(f"Alert sent from camera {self.camera_id}")

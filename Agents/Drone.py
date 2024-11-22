@@ -1,68 +1,56 @@
-# Drone.py
-# Este agente representa un dron que patrulla el entorno y responde a alertas. Es un agente híbrido (reactivo y deductivo).
+import json
+import time
+import base64
+from YOLO.main import detect_anomalies
+
 
 class Drone:
-    def __init__(self, start_position, boundaries):
-        """
-        Inicializa el dron con su posición de inicio.
-        :param start_position: Posición inicial del dron (x, y, z)
-        :param boundaries: Límites del almacén (x_min, x_max, z_min, z_max)
-        """
-        self.current_position = start_position
-        self.target_position = None
-        self.certainty = None  # Certeza de la detección actual
-        self.investigating = False  # Indica si está investigando un área específica
-        self.flying = False
-        self.boundaries = boundaries  # Límites del almacén (x_min, x_max, z_min, z_max)
+    def __init__(self, position, patrol_route):
+        self.position = position
+        self.patrol_route = patrol_route
+        self.current_target = None
+        self.investigating = False
 
-    def take_off(self):
-        """Simula el despegue del dron."""
-        self.flying = True
-        print(f"Drone took off from {self.current_position}")
-
-    def land(self):
-        """Simula el aterrizaje del dron."""
-        self.flying = False
-        print(f"Drone landed at {self.current_position}")
-
-    def patrol(self, route):
+    def move_to(self, target_position):
         """
-        Simula la patrulla del dron siguiendo una ruta.
-        :param route: Lista de posiciones (x, y, z) que el dron debe recorrer.
+        Mueve el dron hacia una posición objetivo.
+        :param target_position: Coordenadas (x, y, z) del objetivo.
         """
-        for position in route:
-            if self.is_within_boundaries(position):
-                self.current_position = position
-                print(f"Drone is patrolling at {self.current_position}")
-            else:
-                print(f"Skipped position {position}, out of boundaries.")
+        print(f"Moving drone to position {target_position}")
+        self.position = target_position
 
-    def investigate(self, position, certainty):
+    def investigate_area(self, websocket, image_data):
         """
-        Simula la investigación de un área sospechosa.
-        Aquí debería integrarse el modelo de visión computacional.
-        :param position: Posición objetivo a investigar.
-        :param certainty: Certeza de la alerta.
+        Inspecciona un área y envía resultados al servidor.
+        :param websocket: WebSocket de comunicación.
+        :param image_data: Imagen en formato base64.
         """
-        if self.is_within_boundaries(position):
-            print(f"Drone moving to {position} to investigate.")
-            self.current_position = position
-            self.certainty = certainty
+        print("Investigating area...")
+        self.investigating = True
 
-            # Simulación de detección: Valor arbitrario para pruebas
-            is_dangerous = self.certainty > 0.7
-            print(f"Investigation complete. Dangerous: {is_dangerous}")
-            return is_dangerous
+        # Guardar y procesar imagen
+        image_path = "images/drone_image.jpg"
+        with open(image_path, "wb") as img_file:
+            img_file.write(base64.b64decode(image_data))
+
+        anomalies = detect_anomalies("drone_image.jpg")
+
+        if anomalies:
+            alert_message = {
+                "type": "drone_alert",
+                "anomalies": anomalies,
+                "position": self.position,
+            }
+            websocket.send(json.dumps(alert_message))
+            print("Alert sent to personnel: Anomalies detected!")
         else:
-            print(f"Target position {position} is out of boundaries.")
-            return False
+            print("No anomalies found. Resuming patrol.")
 
-    def is_within_boundaries(self, position):
+        self.investigating = False
+
+    def resume_patrol(self):
         """
-        Verifica si una posición está dentro de los límites del almacén.
-        :param position: (x, y, z)
-        :return: True si está dentro de los límites, False si no.
+        Reanuda la patrulla del dron.
         """
-        x, _, z = position
-        x_min, x_max, z_min, z_max = self.boundaries
-        return x_min <= x <= x_max and z_min <= z <= z_max
+        self.current_target = None
+        print("Drone resuming patrol...")
