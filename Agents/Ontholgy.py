@@ -10,3 +10,4 @@ class Onthology:
         """
         suspicious_objects = ["intruder"]
         return obj["class"] in suspicious_objects
+    

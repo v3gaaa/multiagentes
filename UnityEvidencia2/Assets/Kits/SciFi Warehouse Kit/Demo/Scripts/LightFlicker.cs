@@ -14,10 +14,10 @@
  
      public void Reset()
      {
-         maximumDim = 0.2f;
-         maximumBoost = 0.2f;
-         speed = 0.1f;
-         strength = 250;
+        maximumDim = 0.2f;
+        maximumBoost = 0.2f;
+        speed = 0.1f;
+        strength = 250;
      }
  
      public void Start()
