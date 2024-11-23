@@ -3131,6 +3131,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 429980423}
+  - component: {fileID: 429980424}
   m_Layer: 0
   m_Name: Scavenger
   m_TagString: Untagged
@@ -3153,6 +3154,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &429980424
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 429980422}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8199c1a0a5ad0d448be34a4aaf60d9d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wanderRadius: 20
+  wanderTimer: 5
 --- !u!1001 &466228107
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5318,7 +5333,7 @@ Light:
   serializedVersion: 10
   m_Type: 0
   m_Shape: 0
-  m_Color: {r: 1, g: 0, b: 0.0992074, a: 1}
+  m_Color: {r: 0.9764151, g: 0.08750888, b: 0.17465691, a: 1}
   m_Intensity: 7.64
   m_Range: 5
   m_SpotAngle: 160
@@ -5689,6 +5704,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 786648619}
+  - component: {fileID: 786648620}
   m_Layer: 0
   m_Name: NPC2
   m_TagString: Untagged
@@ -5711,6 +5727,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &786648620
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 786648618}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7921f97cbaa29df439122feb264ca24e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wanderRadius: 15
+  wanderTimer: 7
 --- !u!1001 &792183974
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6673,6 +6703,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 923586445}
+  - component: {fileID: 923586446}
   m_Layer: 0
   m_Name: Guard
   m_TagString: Untagged
@@ -6695,6 +6726,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &923586446
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 923586444}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44edb325fd66e9841ab0014f8a7d06ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 5
+  catchDistance: 2
+  rotationSpeed: 100
 --- !u!1 &926477927
 GameObject:
   m_ObjectHideFlags: 0
@@ -6704,6 +6750,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 926477928}
+  - component: {fileID: 926477929}
   m_Layer: 0
   m_Name: NPC3
   m_TagString: Untagged
@@ -6726,6 +6773,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &926477929
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 926477927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7921f97cbaa29df439122feb264ca24e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wanderRadius: 15
+  wanderTimer: 7
 --- !u!1001 &940149095
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8346,6 +8407,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1216425270}
+  - component: {fileID: 1216425271}
   m_Layer: 0
   m_Name: NPC1
   m_TagString: Untagged
@@ -8368,6 +8430,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1216425271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1216425269}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7921f97cbaa29df439122feb264ca24e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wanderRadius: 15
+  wanderTimer: 7
 --- !u!1001 &1234772252
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -12418,9 +12494,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5d1e5dcdacf0924cbe56368146b10c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alertTextObject: {fileID: 0}
+  alertTextObject: {fileID: 76202200}
   alertDisplayTime: 3
-  alarmLights: []
+  alarmLights:
+  - {fileID: 1262573422}
+  - {fileID: 1332415335}
+  - {fileID: 853862340}
+  - {fileID: 637380202}
   alarmColor: {r: 1, g: 0, b: 0, a: 1}
   alarmBlinkRate: 1
 --- !u!4 &1834052259
