@@ -1,9 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using WebSocketSharp;
 using System.IO;
-using System;
 
 public class WebSocketClient : MonoBehaviour
 {
@@ -30,6 +30,13 @@ public class WebSocketClient : MonoBehaviour
         ConnectWebSocket();
         StartCoroutine(SendCameraFrames());
         StartCoroutine(SendDroneCameraFrames());
+
+        ws = new WebSocket("ws://localhost:8765");
+        ws.OnMessage += (sender, e) =>
+        {
+            Debug.Log("Message from server: " + e.Data);
+        };
+        ws.Connect();
     }
 
     private void Update()
@@ -152,27 +159,44 @@ public class WebSocketClient : MonoBehaviour
 
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
-        var data = JsonUtility.FromJson<Message>(e.Data);
-        switch (data.type)
+        Debug.Log("Message received from server: " + e.Data);
+
+        try
         {
-            case "camera_alert":
-                Vector3 target = new Vector3(data.position.x, data.position.y, data.position.z);
-                isInvestigating = true;
-                MoveDroneTo(target);
-                break;
+            var data = JsonUtility.FromJson<Message>(e.Data);
+            switch (data.type)
+            {
+                case "camera_alert":
+                    // Log details of detected objects
+                    if (data.detections != null && data.detections.Count > 0)
+                    {
+                        foreach (var detection in data.detections)
+                        {
+                            if (detection.className == "thiefs") // Check for enemies
+                            {
+                                Debug.Log($"Enemy detected! Details: Position: ({detection.x}, {detection.y}), Size: {detection.width}x{detection.height}, Confidence: {detection.confidence}");
+                            }
+                        }
+                    }
+                    break;
 
-            case "drone_control":
-                isDroneControlled = data.status == "TAKE_CONTROL";
-                Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
-                break;
+                case "drone_control":
+                    isDroneControlled = data.status == "TAKE_CONTROL";
+                    Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
+                    break;
 
-            case "alarm":
-                Debug.Log(data.status == "ALERT" ? "ALERT! Real threat detected." : "False alarm.");
-                break;
+                case "alarm":
+                    Debug.Log(data.status == "ALERT" ? "ALERT! Real threat detected." : "False alarm.");
+                    break;
 
-            default:
-                Debug.LogWarning("Unknown message type received.");
-                break;
+                default:
+                    Debug.LogWarning("Unknown message type received.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Failed to process message: " + ex.Message);
         }
     }
 
@@ -253,7 +277,7 @@ public class WebSocketClient : MonoBehaviour
                 if (imageBytes.Length > 0)
                 {
                     SendCameraFrame(cameraId, imageBytes);
-                    Debug.Log($"Sent frame from camera {cameraId}");
+                    //Debug.Log($"Sent frame from camera {cameraId}");
                 }
                 else
                 {
@@ -261,7 +285,7 @@ public class WebSocketClient : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(5f);
+            yield return new WaitForSeconds(1f);
         }
     }
 
@@ -275,7 +299,7 @@ public class WebSocketClient : MonoBehaviour
                 SendDroneCameraFrame(imageBytes);
             }
 
-            yield return new WaitForSeconds(5f);
+            yield return new WaitForSeconds(1f);
         }
     }
 
@@ -342,8 +366,14 @@ public class WebSocketClient : MonoBehaviour
         Debug.Log("Personnel released control of the drone.");
     }
 
+    void OnDestroy()
+    {
+        ws.Close();
+    }
 
-    [Serializable]
+    
+
+        [Serializable]
     private class Message
     {
         public string type;
@@ -352,5 +382,20 @@ public class WebSocketClient : MonoBehaviour
         public Vector3 position;
         public string status;
         public string action;
+        public List<Detection> detections;
     }
+
+    [Serializable]
+    private class Detection
+    {
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+        public float confidence;
+        public string className;
+        public int classId;
+        public string detectionId;
+    }
+
 }
