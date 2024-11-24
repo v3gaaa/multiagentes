@@ -234,6 +234,7 @@ public class WebSocketClient : MonoBehaviour
             {
                 int cameraId = kvp.Key;
                 Camera camera = kvp.Value;
+
                 // Capture an image from the camera
                 RenderTexture renderTexture = new RenderTexture(960, 540, 24);
                 camera.targetTexture = renderTexture;
@@ -244,9 +245,11 @@ public class WebSocketClient : MonoBehaviour
                 texture.Apply();
                 camera.targetTexture = null;
                 RenderTexture.active = null;
+
                 byte[] imageBytes = texture.EncodeToJPG();
                 Destroy(renderTexture);
                 Destroy(texture);
+
                 if (imageBytes.Length > 0)
                 {
                     SendCameraFrame(cameraId, imageBytes);
@@ -257,7 +260,8 @@ public class WebSocketClient : MonoBehaviour
                     Debug.LogError($"Failed to capture image from camera {cameraId}");
                 }
             }
-            yield return new WaitForSeconds(1f); // Interval between each photo capture
+
+            yield return new WaitForSeconds(5f);
         }
     }
 
@@ -270,7 +274,8 @@ public class WebSocketClient : MonoBehaviour
             {
                 SendDroneCameraFrame(imageBytes);
             }
-            yield return new WaitForSeconds(1f); // Interval between each photo capture
+
+            yield return new WaitForSeconds(5f);
         }
     }
 
