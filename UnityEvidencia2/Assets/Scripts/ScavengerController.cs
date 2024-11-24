@@ -30,10 +30,8 @@ public class ScavengerController : MonoBehaviour
         timer += Time.deltaTime;
         if (timer >= wanderTimer)
         {
-            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
-            randomDirection += transform.position;
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(randomDirection, out hit, wanderRadius, 1))
+            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius + transform.position;
+            if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, wanderRadius, 1))
             {
                 agent.SetDestination(hit.position);
             }

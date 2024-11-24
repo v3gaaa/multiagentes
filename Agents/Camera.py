@@ -1,4 +1,3 @@
-import os
 import base64
 import json
 from YOLO.main import detect_anomalies
@@ -21,20 +20,34 @@ class Camera:
 
         # Detectar anomalías con YOLO
         anomalies = detect_anomalies(f"camera_{self.camera_id}.jpg")
-        return anomalies
+        
+        # Filtrar específicamente para detección de scavenger
+        scavenger_detections = [
+            {
+                "class": anomaly["class"],
+                "confidence": anomaly["confidence"],
+                "position": anomaly["position"]
+            }
+            for anomaly in anomalies
+            if anomaly["class"] == "scavenger"
+        ]
+        
+        return scavenger_detections
 
     def alert_drone(self, websocket, anomalies):
         """
-        Envía una alerta al dron si se detectan anomalías.
+        Envía una alerta al dron si se detecta un scavenger.
         :param websocket: WebSocket de comunicación.
         :param anomalies: Lista de anomalías detectadas.
         """
         if anomalies:
+            # Take the position of the first detected scavenger
+            scavenger_position = anomalies[0]["position"]
             alert_message = {
                 "type": "camera_alert",
                 "camera_id": self.camera_id,
                 "anomalies": anomalies,
-                "position": self.position,
+                "position": scavenger_position
             }
             websocket.send(json.dumps(alert_message))
-            print(f"Alert sent from camera {self.camera_id}")
+            print(f"Scavenger alert sent from camera {self.camera_id}")

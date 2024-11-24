@@ -35,19 +35,15 @@ public class GameController : MonoBehaviour
 
     public void TriggerGeneralAlarm(bool isRealThreat)
     {
-        if (simulationEnded) return;
-
         if (isRealThreat)
         {
-            // Stop any existing alarm coroutine
-            if (alarmCoroutine != null)
-            {
-                StopCoroutine(alarmCoroutine);
-            }
+            Debug.Log("Triggering real threat alarm.");
+            if (alarmCoroutine != null) StopCoroutine(alarmCoroutine);
             alarmCoroutine = StartCoroutine(BlinkAlarmLights());
         }
         else
         {
+            Debug.Log("False alarm triggered.");
             ShowFalseAlarm();
         }
     }

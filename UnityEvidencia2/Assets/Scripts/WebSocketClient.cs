@@ -38,13 +38,20 @@ public class WebSocketClient : MonoBehaviour
         {
             PatrolDrone();
         }
+        else if (isDroneControlled)
+        {
+            Debug.Log("Drone is under manual control.");
+        }
     }
 
     private void PatrolDrone()
     {
         if (currentWaypointIndex >= patrolRoute.Count)
         {
-            currentWaypointIndex = 0; // Reset patrol
+            // Drone lands when patrol completes
+            MoveDroneTo(landingStation);
+            Debug.Log("Drone returning to landing station.");
+            return;
         }
 
         Vector3 target = patrolRoute[currentWaypointIndex];
@@ -146,15 +153,26 @@ public class WebSocketClient : MonoBehaviour
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
         var data = JsonUtility.FromJson<Message>(e.Data);
-        if (data.type == "camera_alert")
+        switch (data.type)
         {
-            Vector3 target = new Vector3(data.position.x, data.position.y, data.position.z);
-            isInvestigating = true;
-            MoveDroneTo(target);
-        }
-        else if (data.type == "alarm")
-        {
-            Debug.Log(data.status == "ALERT" ? "ALERTA" : "FALSA ALARMA");
+            case "camera_alert":
+                Vector3 target = new Vector3(data.position.x, data.position.y, data.position.z);
+                isInvestigating = true;
+                MoveDroneTo(target);
+                break;
+
+            case "drone_control":
+                isDroneControlled = data.status == "TAKE_CONTROL";
+                Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
+                break;
+
+            case "alarm":
+                Debug.Log(data.status == "ALERT" ? "ALERT! Real threat detected." : "False alarm.");
+                break;
+
+            default:
+                Debug.LogWarning("Unknown message type received.");
+                break;
         }
     }
 
@@ -310,6 +328,21 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
+    public void TakeControl()
+    {
+        var message = new Message { type = "manual_control", action = "take_control" };
+        ws.Send(JsonUtility.ToJson(message));
+        Debug.Log("Personnel took control of the drone.");
+    }
+
+    public void ReleaseControl()
+    {
+        var message = new Message { type = "manual_control", action = "release_control" };
+        ws.Send(JsonUtility.ToJson(message));
+        Debug.Log("Personnel released control of the drone.");
+    }
+
+
     [Serializable]
     private class Message
     {
@@ -318,5 +351,6 @@ public class WebSocketClient : MonoBehaviour
         public string image;
         public Vector3 position;
         public string status;
+        public string action;
     }
 }

@@ -56,12 +56,16 @@ public class GuardController : MonoBehaviour
         agent.SetDestination(scavengerPosition);
     }
 
+    public void MoveToAlert(Vector3 alertPosition)
+    {
+        targetPosition = alertPosition;
+        isMovingToTarget = true;
+        Debug.Log("Guard moving to alert position.");
+    }
+
     private void OnScavengerCaught()
     {
-        Debug.Log("Scavenger caught!");
-        if (gameController != null)
-        {
-            gameController.EndSimulation();
-        }
+        Debug.Log("Guard resolved the alert.");
+        gameController.EndSimulation();
     }
 }
