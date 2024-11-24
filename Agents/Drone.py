@@ -1,5 +1,4 @@
 import json
-import time
 import base64
 from YOLO.main import detect_anomalies
 
