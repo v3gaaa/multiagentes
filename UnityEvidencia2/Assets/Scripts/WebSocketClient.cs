@@ -17,7 +17,7 @@ public class WebSocketClient : MonoBehaviour
     private int currentWaypointIndex = 0;
     private bool isDroneControlled = false;
     private bool isInvestigating = false;
-    private Vector3 landingStation = new Vector3(16, 0, 1);
+    private Vector3 landingStation = new Vector3(3, 0, 1);
     private Vector3 controlStation = new Vector3(14, 0, 1);
 
     public float droneSpeed = 5f;
@@ -112,18 +112,25 @@ public class WebSocketClient : MonoBehaviour
     {
         patrolRoute = new List<Vector3>
         {
-            new Vector3(14, 8, 8),
-            new Vector3(16, 8, 10),
-            new Vector3(18, 8, 12),
-            new Vector3(20, 8, 14),
-            new Vector3(22, 8, 16),
-            new Vector3(20, 8, 20),
-            new Vector3(18, 8, 18),
-            new Vector3(16, 8, 16),
-            new Vector3(14, 8, 14),
-            new Vector3(12, 8, 12),
-            new Vector3(10, 8, 10),
-            new Vector3(8, 8, 8)
+            new Vector3(4, 7, 3),     
+            new Vector3(14, 7, 3),  
+            new Vector3(21, 7, 3), 
+
+            new Vector3(21, 7, 9),    
+            new Vector3(14, 7, 9),    
+            new Vector3(4, 7, 9), 
+
+            new Vector3(4, 7, 15), 
+            new Vector3(14, 7, 15),    
+            new Vector3(21, 7, 15),
+
+            new Vector3(21, 7, 21), 
+            new Vector3(14, 7, 21),   
+            new Vector3(4, 7, 21),     
+
+            new Vector3(4, 7, 27),    
+            new Vector3(14, 7, 27),    
+            new Vector3(21, 7, 27), 
         };
     }
 

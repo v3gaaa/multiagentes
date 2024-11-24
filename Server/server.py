@@ -23,9 +23,20 @@ cameras = [
     Camera(camera_id=3, position={"x": 0, "y": 8, "z": 1}),
 ]
 
-drone = Drone(position={"x": 16, "y": 0, "z": 1}, patrol_route=[
-    {"x": 14, "y": 8, "z": 8}, {"x": 20, "y": 8, "z": 20}, {"x": 8, "y": 8, "z": 8}
-])
+drone = Drone(
+    position={"x": 16, "y": 0, "z": 1},
+    patrol_route=[
+        {"x": 6, "y": 8, "z": 4},      # Start at first aisle
+        {"x": 6, "y": 8, "z": 26},     # Move down first aisle
+        {"x": 10, "y": 8, "z": 26},    # Shift right to second aisle
+        {"x": 10, "y": 8, "z": 4},     # Move up second aisle
+        {"x": 14, "y": 8, "z": 4},     # Shift right to third aisle
+        {"x": 14, "y": 8, "z": 26},    # Move down third aisle
+        {"x": 18, "y": 8, "z": 26},    # Shift right to fourth aisle
+        {"x": 18, "y": 8, "z": 4},     # Move up fourth aisle
+        {"x": 6, "y": 8, "z": 4},      # Return to start
+    ]
+)
 
 personnel = Personnel(control_station={"x": 14, "y": 0, "z": 1})
 
