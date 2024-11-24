@@ -7,13 +7,14 @@ class Camera:
     def __init__(self, camera_id, position):
         self.camera_id = camera_id
         self.position = position
+        self.succes_metrics = {
+            "total_detections": 0,
+            "false_alarms": 0,
+            "detection_rate": 0.0,
+            "last_activity": None   
+        }
 
     def process_image(self, image_data):
-        """
-        Procesa una imagen recibida desde Unity.
-        :param image_data: Imagen en formato base64.
-        :return: Lista de anomalías detectadas.
-        """
         image_path = f"images/camera_{self.camera_id}.jpg"
         with open(image_path, "wb") as img_file:
             img_file.write(base64.b64decode(image_data))
@@ -35,11 +36,6 @@ class Camera:
         return scavenger_detections
 
     def alert_drone(self, websocket, anomalies):
-        """
-        Envía una alerta al dron si se detecta un scavenger.
-        :param websocket: WebSocket de comunicación.
-        :param anomalies: Lista de anomalías detectadas.
-        """
         if anomalies:
             # Take the position of the first detected scavenger
             scavenger_position = anomalies[0]["position"]
@@ -51,3 +47,22 @@ class Camera:
             }
             websocket.send(json.dumps(alert_message))
             print(f"Scavenger alert sent from camera {self.camera_id}")
+
+    def record_detection(self, was_true_detection):
+        """Record the success/failure of a detection"""
+        if was_true_detection:
+            self.success_metrics['true_detections'] += 1
+        else:
+            self.success_metrics['false_alarms'] += 1
+        
+        total_detections = (self.success_metrics['true_detections'] + 
+                          self.success_metrics['false_alarms'])
+        if total_detections > 0:
+            self.success_metrics['detection_rate'] = (
+                self.success_metrics['true_detections'] / total_detections
+            )
+        self.success_metrics['last_activity'] = time.time()
+
+    def get_success_rate(self):
+        """Get the camera's success rate"""
+        return self.success_metrics['detection_rate']

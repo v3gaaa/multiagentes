@@ -42,7 +42,7 @@ def alert_drone(websocket, anomalies):
         alert_message = {
             "type": "camera_alert",
             "anomalies": anomalies,
-            "position": anomalies[0].get("position"),  # Assumes the anomaly includes a position
+            "position": anomalies[0].get("position"),  
         }
         websocket.send(json.dumps(alert_message))
         print("Alert sent to the drone:", alert_message)
@@ -54,7 +54,7 @@ def alert_personnel(websocket, anomalies):
         alert_message = {
             "type": "drone_alert",
             "anomalies": anomalies,
-            "position": anomalies[0].get("position"),  # Assumes the anomaly includes a position
+            "position": anomalies[0].get("position"),  
         }
         websocket.send(json.dumps(alert_message))
         print("Alert sent to personnel:", alert_message)

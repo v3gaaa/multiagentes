@@ -4,13 +4,14 @@ class Personnel:
     def __init__(self, control_station):
         self.control_station = control_station
         self.drone_control = False
+        self.success_metrics = {
+            'alerts_handled': 0,
+            'correct_assessments': 0,
+            'assessment_accuracy': 0.0,
+            'manual_control_instances': 0
+        }
 
     def take_control_of_drone(self, drone, websocket):
-        """
-        Toma control del dron.
-        :param drone: Objeto del dron.
-        :param websocket: WebSocket para comunicación.
-        """
         self.drone_control = True
         control_message = {
             "type": "guard_control",
@@ -20,11 +21,6 @@ class Personnel:
         print("Personnel has taken control of the drone.")
 
     def release_control_of_drone(self, drone, websocket):
-        """
-        Libera el control del dron.
-        :param drone: Objeto del dron.
-        :param websocket: WebSocket para comunicación.
-        """
         self.drone_control = False
         control_message = {
             "type": "guard_control",
@@ -34,11 +30,6 @@ class Personnel:
         print("Personnel has released control of the drone.")
 
     def handle_alert(self, websocket, alert_data):
-        """
-        Maneja una alerta recibida.
-        :param websocket: WebSocket de comunicación.
-        :param alert_data: Datos de la alerta.
-        """
         print(f"Handling alert: {alert_data}")
         if self.assess_threat(alert_data["anomalies"]):
             print("ALERT! Scavenger detected. Sending alarm signal.")
@@ -47,6 +38,7 @@ class Personnel:
                 "status": "ALERT",
                 "position": alert_data.get("position", None)
             }
+            self.record_assessment(True)
             websocket.send(json.dumps(alert_message))
         else:
             print("False alarm. No scavenger detected.")
@@ -54,13 +46,28 @@ class Personnel:
             websocket.send(json.dumps(alert_message))
 
     def assess_threat(self, anomalies):
-        """
-        Evalúa si las anomalías representan una amenaza real (scavenger).
-        :param anomalies: Lista de anomalías detectadas.
-        :return: True si se detecta un scavenger, False si no.
-        """
         for anomaly in anomalies:
             # Check if the detected object is a scavenger with high confidence
             if anomaly["class"] == "scavenger" and anomaly["confidence"] > 0.8:
                 return True
         return False
+    
+    def record_assessment(self, was_correct):
+        """Record the success/failure of a threat assessment"""
+        self.success_metrics['alerts_handled'] += 1
+        if was_correct:
+            self.success_metrics['correct_assessments'] += 1
+        
+        if self.success_metrics['alerts_handled'] > 0:
+            self.success_metrics['assessment_accuracy'] = (
+                self.success_metrics['correct_assessments'] / 
+                self.success_metrics['alerts_handled']
+            )
+
+    def record_manual_control(self):
+        """Record instance of manual drone control"""
+        self.success_metrics['manual_control_instances'] += 1
+
+    def get_success_rate(self):
+        """Get the personnel's success rate"""
+        return self.success_metrics['assessment_accuracy']

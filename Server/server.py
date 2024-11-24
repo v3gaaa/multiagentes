@@ -56,14 +56,10 @@ environment = Environment(
 )
 
 def handle_camera_frame(websocket, data):
-    """
-    Handles camera frame messages by detecting anomalies and alerting the drone if necessary.
-    :param websocket: The WebSocket connection.
-    :param data: Incoming message data from the camera.
-    """
     camera_id = data["camera_id"]
     image_data = data["image"]
     image_path = save_image(image_data, f"camera_{camera_id}.jpg")
+    camera = next(c for c in cameras if c.camera_id == camera_id)
 
     anomalies = detect_anomalies(image_path)
     if anomalies:
@@ -71,9 +67,10 @@ def handle_camera_frame(websocket, data):
         alert_message = {
             "type": "camera_alert",
             "camera_id": camera_id,
-            "position": anomalies[0]["position"],  # Assumes anomalies have a 'position' field
+            "position": anomalies[0]["position"],  
             "anomalies": anomalies,
         }
+        camera.record_detection(bool(anomalies))
         websocket.send(json.dumps(alert_message))
     else:
         print(f"No anomalies detected by camera {camera_id}.")
