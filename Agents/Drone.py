@@ -33,7 +33,7 @@ class Drone:
                 "position": anomaly["position"]
             }
             for anomaly in anomalies
-            if anomaly["class"] == "scavenger"
+            if anomaly["class"] == "thiefs"
         ]
 
         if scavenger_detections:

@@ -145,6 +145,46 @@ public class WebSocketClient : MonoBehaviour
             new Vector3(4, 7, 27),    
             new Vector3(14, 7, 27),    
             new Vector3(21, 7, 27), 
+
+            new Vector3(4, 7, 3),     
+            new Vector3(14, 7, 3),  
+            new Vector3(21, 7, 3), 
+
+            new Vector3(21, 7, 9),    
+            new Vector3(14, 7, 9),    
+            new Vector3(4, 7, 9), 
+
+            new Vector3(4, 7, 15), 
+            new Vector3(14, 7, 15),    
+            new Vector3(21, 7, 15),
+
+            new Vector3(21, 7, 21), 
+            new Vector3(14, 7, 21),   
+            new Vector3(4, 7, 21),     
+
+            new Vector3(4, 7, 27),    
+            new Vector3(14, 7, 27),    
+            new Vector3(21, 7, 27), 
+
+            new Vector3(4, 7, 3),     
+            new Vector3(14, 7, 3),  
+            new Vector3(21, 7, 3), 
+
+            new Vector3(21, 7, 9),    
+            new Vector3(14, 7, 9),    
+            new Vector3(4, 7, 9), 
+
+            new Vector3(4, 7, 15), 
+            new Vector3(14, 7, 15),    
+            new Vector3(21, 7, 15),
+
+            new Vector3(21, 7, 21), 
+            new Vector3(14, 7, 21),   
+            new Vector3(4, 7, 21),     
+
+            new Vector3(4, 7, 27),    
+            new Vector3(14, 7, 27),    
+            new Vector3(21, 7, 27),
         };
     }
 

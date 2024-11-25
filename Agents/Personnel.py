@@ -48,7 +48,7 @@ class Personnel:
     def assess_threat(self, anomalies):
         for anomaly in anomalies:
             # Check if the detected object is a scavenger with high confidence
-            if anomaly["class"] == "scavenger" and anomaly["confidence"] > 0.8:
+            if anomaly["class"] == "thief" and anomaly["confidence"] > 0.8:
                 return True
         return False
     

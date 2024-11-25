@@ -31,7 +31,7 @@ class Camera:
                 "position": anomaly["position"]
             }
             for anomaly in anomalies
-            if anomaly["class"] == "scavenger"
+            if anomaly["class"] == "thiefs"
         ]
         
         return scavenger_detections
