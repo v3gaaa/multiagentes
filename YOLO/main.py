@@ -9,7 +9,7 @@ CLIENT = InferenceHTTPClient(
     api_key="5Pdz8tW7hi78Qf6oXAQt"
 )
 
-MODEL_ID = "thieforsusdetection/3"
+MODEL_ID = "thieforsusdetection-2/1"
 IMAGE_FOLDER = "images"
 
 def detect_anomalies(image_name):

@@ -1,15 +1,19 @@
-// NPCController.cs
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections;
+using System.Collections.Generic;
 
 public class NPCController : MonoBehaviour
 {
-    [Header("Movement Settings")]
-    [SerializeField] private float wanderRadius = 15f;
-    [SerializeField] private float wanderTimer = 7f;
-    
+    [Header("NPC Settings")]
+    [SerializeField] private float moveSpeed = 2.5f;
+    [SerializeField] private float waypointReachThreshold = 0.5f;
+    [SerializeField] private float waitTimeAtWaypoint = 5f;
+
     private NavMeshAgent agent;
-    private float timer;
+    private int currentWaypointIndex = 0;
+    [SerializeField] private List<Vector3> patrolRoute;
+    private bool isWaiting = false;
 
     void Start()
     {
@@ -18,27 +22,46 @@ public class NPCController : MonoBehaviour
         {
             agent = gameObject.AddComponent<NavMeshAgent>();
         }
-        timer = wanderTimer;
-        
-        // Configure NavMeshAgent
-        agent.speed = 2.5f;
+
+        agent.speed = moveSpeed;
         agent.acceleration = 6.0f;
-        agent.angularSpeed = 90f;
+        agent.angularSpeed = 120f;
+
+        // Define patrol route
+        patrolRoute = new List<Vector3>
+        {
+            new Vector3(8, 7, 9), new Vector3(16, 7, 9),
+            new Vector3(15, 7, 15), new Vector3(8, 7, 15),
+            new Vector3(7, 7, 20), new Vector3(16, 7, 21),
+        };
+
+        MoveToNextWaypoint();
     }
 
     void Update()
     {
-        timer += Time.deltaTime;
-        if (timer >= wanderTimer)
+        if (!isWaiting && !agent.pathPending && agent.remainingDistance < waypointReachThreshold)
         {
-            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
-            randomDirection += transform.position;
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(randomDirection, out hit, wanderRadius, 1))
-            {
-                agent.SetDestination(hit.position);
-            }
-            timer = 0;
+            StartCoroutine(WaitAtWaypoint());
         }
+    }
+
+    private IEnumerator WaitAtWaypoint()
+    {
+        isWaiting = true;
+        //Debug.Log("Waiting at waypoint...");
+        yield return new WaitForSeconds(waitTimeAtWaypoint);
+        isWaiting = false;
+        MoveToNextWaypoint();
+    }
+
+    private void MoveToNextWaypoint()
+    {
+        if (patrolRoute.Count == 0)
+            return;
+
+        agent.SetDestination(patrolRoute[currentWaypointIndex]);
+        currentWaypointIndex = (currentWaypointIndex + 1) % patrolRoute.Count;
+        //Debug.Log("NPC moving to waypoint: " + currentWaypointIndex);
     }
 }

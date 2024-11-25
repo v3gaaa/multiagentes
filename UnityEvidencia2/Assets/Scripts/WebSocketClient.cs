@@ -325,7 +325,7 @@ public class WebSocketClient : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(5f); //Speed to change pictirus
         }
     }
 
