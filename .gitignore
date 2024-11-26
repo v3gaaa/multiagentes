@@ -1,1 +1,5 @@
 UnityEvidencia2/Temp/
+
+venv/
+
+.python-version

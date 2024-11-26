@@ -221,6 +221,7 @@ public class WebSocketClient : MonoBehaviour
                     break;
 
                 case "drone_control":
+                    isDroneControlled = true;
                     isDroneControlled = data.status == "TAKE_CONTROL";
                     Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
                     break;

@@ -85,16 +85,17 @@ def save_image(base64_image, filename):
         print(f"Error saving image {filename}: {e}")
         return None
 
-def alert_drone(websocket, anomalies, camera_position):
+async def alert_drone(websocket, anomalies, camera_position):
     """Send alert to drone with detected anomalies"""
+    # alert_drone(websocket, scavenger_detections, self.position)
     if anomalies:
         world_position = convert_yolo_to_unity_position(anomalies[0], camera_position)
         alert_message = {
             "type": "camera_alert",
             "anomalies": anomalies,
-            "position": world_position
+            "target_position": world_position
         }
-        websocket.send(json.dumps(alert_message))
+        await websocket.send(json.dumps(alert_message))
         print(f"Alert sent to drone. Position: {world_position}")
     else:
         print("No anomalies to alert about")

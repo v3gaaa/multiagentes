@@ -49,13 +49,16 @@ async def handler(websocket):
                 image_data = base64.b64decode(data["image"])
                 for camera in cameras:
                     if camera.camera_id == camera_id:
-                        anomalies = camera.process_image(data["image"])
-                        if anomalies:
-                            camera.alert_drone(websocket, anomalies)
+                        camera.process_image(data["image"], websocket)
+        
+            elif message_type == "drone_investigation_command":
+                target_position = data.get("target_position")
+                if target_position:
+                    await drone.navigate_and_investigate(websocket, target_position)
 
             elif message_type == "drone_camera_frame":
-                image_data = base64.b64decode(data["image"])
-                drone.investigate_area(websocket, data["image"])
+                image_data = data["image"]
+                await drone.investigate_area(websocket, image_data)
 
             elif message_type == "manual_control":
                 if data["action"] == "take_control":

@@ -1,53 +1,53 @@
 import base64
 import json
 import time
-from YOLO.main import detect_anomalies
+from YOLO.main import detect_anomalies, alert_drone
 
 
 class Camera:
     def __init__(self, camera_id, position):
         self.camera_id = camera_id
         self.position = position
-        self.succes_metrics = {
+        self.success_metrics = {
             "total_detections": 0,
+            "true_detections": 0,
             "false_alarms": 0,
             "detection_rate": 0.0,
             "last_activity": None   
         }
 
-    def process_image(self, image_data):
+    async def process_image(self, image_data, websocket):
         image_path = f"images/camera_{self.camera_id}.jpg"
         with open(image_path, "wb") as img_file:
             img_file.write(base64.b64decode(image_data))
 
+        print(f"Camera {self.camera_id} processing image")
+
         # Detectar anomalías con YOLO
         anomalies = detect_anomalies(f"camera_{self.camera_id}.jpg")
+        print(f"Anomalies detected by camera {self.camera_id}: {anomalies}")
         
         # Filtrar específicamente para detección de scavenger
         scavenger_detections = [
             {
-                "class": anomaly["class"],
+                "x": anomaly["x"],
+                "y": anomaly["y"],
+                "width": anomaly.get("width", 0),
+                "height": anomaly.get("height", 0),
                 "confidence": anomaly["confidence"],
-                "position": anomaly["position"]
+                "className": anomaly["class"]
             }
             for anomaly in anomalies
             if anomaly["class"] == "thiefs"
         ]
+        if (scavenger_detections != []):
+            print("Entered if camera")
+            self.record_detection(True)
+            print(f"Scavenger detections in camera, sending to drone: {scavenger_detections}")
+            await websocket.send(json.dumps({"type": "camera_alert", "detections": scavenger_detections}))
+            alert_drone(websocket, scavenger_detections, self.position)
         
         return scavenger_detections
-
-    def alert_drone(self, websocket, anomalies):
-        if anomalies:
-            # Take the position of the first detected scavenger
-            scavenger_position = anomalies[0]["position"]
-            alert_message = {
-                "type": "camera_alert",
-                "camera_id": self.camera_id,
-                "anomalies": anomalies,
-                "position": scavenger_position
-            }
-            websocket.send(json.dumps(alert_message))
-            print(f"Scavenger alert sent from camera {self.camera_id}")
 
     def record_detection(self, was_true_detection):
         """Record the success/failure of a detection"""

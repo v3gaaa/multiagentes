@@ -10,12 +10,24 @@ class Drone:
         self.investigating = False
         self.success_metrics = {
             "areas_investigated": 0,
-            "succesful_detections": 0,
+            "successful_detections": 0,
             "patrols_completed": 0,
             "investigation_success_rate": 0.0
         }
 
-    def investigate_area(self, websocket, image_data):
+    async def navigate_and_investigate(self, websocket, target_position):
+        try:
+            # Update drone's position to the target
+            print(f"Drone navigating to position: {target_position}")
+            self.position = target_position
+            self.current_target = target_position
+
+            print("Waiting for drone camera frame...")
+        
+        except Exception as e:
+            print(f"Error during drone navigation and investigation: {e}")
+
+    async def investigate_area(self, websocket, image_data):
         print("Investigating area...")
         self.investigating = True
 
@@ -26,27 +38,36 @@ class Drone:
 
         # Detectar específicamente scavengers
         anomalies = detect_anomalies("drone_image.jpg")
+        print(f"Anomalies detected by drone: {anomalies}")
         scavenger_detections = [
             {
-                "class": anomaly["class"],
+                "x": anomaly["x"],
+                "y": anomaly["y"],
+                "width": anomaly.get("width", 0),
+                "height": anomaly.get("height", 0),
                 "confidence": anomaly["confidence"],
-                "position": anomaly["position"]
+                "className": anomaly["class"]
             }
             for anomaly in anomalies
             if anomaly["class"] == "thiefs"
         ]
+        print(f"Scavenger detections: {scavenger_detections}")
 
-        if scavenger_detections:
+        if (scavenger_detections != []):
+            print("Entered if")
+            print(self.position)
             alert_message = {
                 "type": "drone_alert",
-                "anomalies": scavenger_detections,
-                "position": self.position,
+                "detections": scavenger_detections,
+                "position": self.position
             }
-            websocket.send(json.dumps(alert_message))
+        
+            print(f"Alert message sent to personnel: {alert_message}")
+            await websocket.send(json.dumps({"type": "drone_control", "detections": scavenger_detections}))
             self.record_investigation(bool(scavenger_detections))
             print("Alert sent to personnel: Scavenger detected!")
         else:
-            print("No scavenger found. Resuming patrol.")
+            print("No scavenger found.")
 
         self.investigating = False
 
