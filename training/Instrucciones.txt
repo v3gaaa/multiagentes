@@ -1,0 +1,9 @@
+In case of deletion of "best.pt" in the folder models/, take out every file from this 
+folder so that is in the root of the project.
+
+Run the scripts in the following order
+# First, download the dataset
+python download_dataset.py
+
+# Then, train the model
+python train_model.p

@@ -1,0 +1,12 @@
+names:
+- thiefs
+nc: 1
+roboflow:
+  license: Public Domain
+  project: thieforsusdetection
+  url: https://universe.roboflow.com/marce/thieforsusdetection/dataset/3
+  version: 3
+  workspace: marce
+test: ../test/images
+train: ../train/images
+val: ../valid/images
