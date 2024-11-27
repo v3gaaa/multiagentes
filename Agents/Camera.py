@@ -2,68 +2,66 @@ import base64
 import json
 import time
 from YOLO.main import detect_anomalies, alert_drone
-
+from utils.PositionUtils import PositionUtils
 
 class Camera:
     def __init__(self, camera_id, position):
         self.camera_id = camera_id
         self.position = position
-        self.success_metrics = {
-            "total_detections": 0,
-            "true_detections": 0,
-            "false_alarms": 0,
-            "detection_rate": 0.0,
-            "last_activity": None   
-        }
-
+        self.last_detection_time = None
+        self.detection_history = []
+        self.confidence_threshold = 0.7
+        self.valid_classes = ['thiefs']  # Your trained class
+        
     async def process_image(self, image_data, websocket):
+        """Process incoming camera frames and detect anomalies"""
         image_path = f"images/camera_{self.camera_id}.jpg"
         with open(image_path, "wb") as img_file:
             img_file.write(base64.b64decode(image_data))
 
         print(f"Camera {self.camera_id} processing image")
 
-        # Detectar anomalías con YOLO
-        anomalies = detect_anomalies(f"camera_{self.camera_id}.jpg")
-        print(f"Anomalies detected by camera {self.camera_id}: {anomalies}")
+        # Detect anomalies
+        detections = detect_anomalies(f"camera_{self.camera_id}.jpg")
+        print(f"Raw detections from camera {self.camera_id}: {detections}")
         
-        # Filtrar específicamente para detección de scavenger
-        scavenger_detections = [
-            {
-                "x": anomaly["x"],
-                "y": anomaly["y"],
-                "width": anomaly.get("width", 0),
-                "height": anomaly.get("height", 0),
-                "confidence": anomaly["confidence"],
-                "className": anomaly["class"]
+        # Filter detections based on confidence
+        high_confidence_detections = []
+        for detection in detections:
+            if (detection['class'] == 'thiefs' and 
+                detection['confidence'] > self.confidence_threshold):
+                
+                # Convert detection coordinates to Unity world space
+                world_pos = PositionUtils.yolo_to_unity_position(detection, self.position)
+                
+                detection_data = {
+                    "x": detection["x"],
+                    "y": detection["y"],
+                    "width": detection.get("width", 0),
+                    "height": detection.get("height", 0),
+                    "confidence": detection["confidence"],
+                    "className": "thiefs",
+                    "world_position": world_pos
+                }
+                high_confidence_detections.append(detection_data)
+                
+                print(f"Camera {self.camera_id} detected high-confidence scavenger: {detection_data}")
+
+        if high_confidence_detections:
+            # Take the highest confidence detection
+            primary_detection = max(high_confidence_detections, key=lambda x: x['confidence'])
+            
+            # Create alert with world position
+            alert_data = {
+                "type": "camera_alert",
+                "camera_id": self.camera_id,
+                "detection": primary_detection,
+                "position": primary_detection["world_position"],
+                "timestamp": time.time()
             }
-            for anomaly in anomalies
-            if anomaly["class"] == "thiefs"
-        ]
-        if (scavenger_detections != []):
-            print("Entered if camera")
-            self.record_detection(True)
-            print(f"Scavenger detections in camera, sending to drone: {scavenger_detections}")
-            await websocket.send(json.dumps({"type": "camera_alert", "detections": scavenger_detections}))
-            alert_drone(websocket, scavenger_detections, self.position)
-        
-        return scavenger_detections
+            
+            print(f"Camera {self.camera_id} sending alert: {alert_data}")
+            await websocket.send(json.dumps(alert_data))
+            await alert_drone(websocket, [primary_detection], self.position)
 
-    def record_detection(self, was_true_detection):
-        """Record the success/failure of a detection"""
-        if was_true_detection:
-            self.success_metrics['true_detections'] += 1
-        else:
-            self.success_metrics['false_alarms'] += 1
-        
-        total_detections = (self.success_metrics['true_detections'] + 
-                          self.success_metrics['false_alarms'])
-        if total_detections > 0:
-            self.success_metrics['detection_rate'] = (
-                self.success_metrics['true_detections'] / total_detections
-            )
-        self.success_metrics['last_activity'] = time.time()
-
-    def get_success_rate(self):
-        """Get the camera's success rate"""
-        return self.success_metrics['detection_rate']
+        return high_confidence_detections

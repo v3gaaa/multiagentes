@@ -20,7 +20,7 @@ from Agents.Environment import Environment
 cameras = [
     Camera(camera_id=1, position={"x": 23.5, "y": 8, "z": 29}),
     Camera(camera_id=2, position={"x": 23.5, "y": 8, "z": 0}),
-    Camera(camera_id=3, position={"x": 0, "y": 8, "z": 1}),
+    Camera(camera_id=3, position={"x": 0, "y": 8, "z": 1})
 ]
 
 drone = Drone(position={"x": 16, "y": 0, "z": 1}, patrol_route=[
@@ -46,10 +46,9 @@ async def handler(websocket):
 
             if message_type == "camera_frame":
                 camera_id = data["camera_id"]
-                image_data = base64.b64decode(data["image"])
                 for camera in cameras:
                     if camera.camera_id == camera_id:
-                        camera.process_image(data["image"], websocket)
+                        await camera.process_image(data["image"], websocket)
         
             elif message_type == "drone_investigation_command":
                 target_position = data.get("target_position")
