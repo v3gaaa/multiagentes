@@ -18,7 +18,7 @@ class Personnel:
             "status": "TAKE_CONTROL"
         }
         await websocket.send(json.dumps(control_message))
-        print("Personnel has taken control of the drone.")
+        print("[Personnel] Personnel has taken control of the drone.")
 
     def release_control_of_drone(self, websocket):
         self.drone_control = False

@@ -230,7 +230,9 @@ public class WebSocketClient : MonoBehaviour
                     }
                     break;
 
-                case "drone_control":
+                case "guard_control":
+                    // el guardia ya tiene el control, hacer un recorrido con el dron
+                    // buscándolo, mientras el guardia sigue en la control station
                     lock (mainThreadQueue)
                     {
                         mainThreadQueue.Enqueue(() =>
@@ -268,10 +270,13 @@ public class WebSocketClient : MonoBehaviour
                         });
                     }
                     break;
+                    
 
                 default:
                     Debug.LogWarning("Unknown message type received.");
                     break;
+
+                
             }
         }
         catch (Exception ex)

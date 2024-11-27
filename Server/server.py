@@ -67,7 +67,7 @@ async def handler(websocket):
                 await drone.navigate_and_investigate(websocket, target_position)
 
             elif message_type == "guard_at_control_station":
-                personnel.take_control_of_drone(websocket)
+                await personnel.take_control_of_drone(websocket)
 
             
 
