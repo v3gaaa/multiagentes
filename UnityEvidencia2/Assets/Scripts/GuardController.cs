@@ -2,20 +2,26 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
+using System.Collections;
 
 public class GuardController : MonoBehaviour
 {
     [Header("Guard Settings")]
     [SerializeField] private float moveSpeed = 3.5f;
     [SerializeField] private float catchDistance = 2f;
+    [SerializeField] private float controlStationStayDuration = 10f;
     //[SerializeField] private float rotationSpeed = 100f;
 
     private NavMeshAgent agent;
     private int currentWaypointIndex = 0;
     private bool isMovingToTarget = false;
-    private Animator animator; // If you have animations
+    private Animator animator; 
     private GameController gameController;
     private List<Vector3> patrolRoute;
+
+    private Vector3 controlStationPosition;
+    private bool isAtControlStation = false;
+    private float controlStationTimer = 0f;
 
     void Start()
     {
@@ -42,6 +48,8 @@ public class GuardController : MonoBehaviour
             new Vector3(4, 7, 27), new Vector3(14, 7, 27), new Vector3(21, 7, 27)
         };
 
+        controlStationPosition = new Vector3(14f, 0f, 1f);
+
         MoveToNextWaypoint();
     }
 
@@ -50,11 +58,22 @@ public class GuardController : MonoBehaviour
         if (isMovingToTarget)
         {
             agent.SetDestination(agent.destination);
+            
+            // Check if reached the target (could be scavenger or control station)
             if (Vector3.Distance(transform.position, agent.destination) <= catchDistance)
             {
                 isMovingToTarget = false;
-                Debug.Log("Guard caught a scavenger!");
-                OnScavengerCaught();
+                
+                // If at control station, start staying timer
+                if (IsAtControlStation())
+                {
+                    StartCoroutine(StayAtControlStation());
+                }
+                else
+                {
+                    Debug.Log("Guard caught a scavenger!");
+                    OnScavengerCaught();
+                }
             }
         }
         else
@@ -70,6 +89,39 @@ public class GuardController : MonoBehaviour
         {
             animator.SetBool("IsMoving", agent.velocity.magnitude > 0.1f);
         }
+    }
+
+    // New method to move to control station
+    public void MoveToControlStation()
+    {
+        agent.SetDestination(controlStationPosition);
+        isMovingToTarget = true;
+        Debug.Log("Guard moving to control station.");
+    }
+
+    // Check if guard is at control station
+    private bool IsAtControlStation()
+    {
+        return Vector3.Distance(transform.position, controlStationPosition) <= catchDistance;
+    }
+
+    // Coroutine to stay at control station for specified duration
+    private IEnumerator StayAtControlStation()
+    {
+        isAtControlStation = true;
+        Debug.Log("Guard arrived at control station.");
+
+        // Wait for specified number of frames
+        for (float timer = 0; timer < controlStationStayDuration; timer += Time.deltaTime)
+        {
+            yield return null;
+        }
+
+        isAtControlStation = false;
+        Debug.Log("Guard finished staying at control station.");
+
+        // Resume patrol or other previous activities
+        MoveToNextWaypoint();
     }
 
     private void MoveToNextWaypoint()

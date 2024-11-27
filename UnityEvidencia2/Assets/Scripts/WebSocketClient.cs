@@ -23,7 +23,7 @@ public class WebSocketClient : MonoBehaviour
     private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
 
     public float droneSpeed = 5f;
-    public float guardSpeed = 3f;
+    public float guardSpeed = 5f;
 
     private void Start()
     {
@@ -283,29 +283,29 @@ public class WebSocketClient : MonoBehaviour
 
 
 
-private void HandleCameraAlert(Vector3 alertPosition)
-{
-    Debug.Log($"[Unity] Camera Alert Received! Drone moving to investigate position: {alertPosition}");
-    lock (mainThreadQueue)
+    private void HandleCameraAlert(Vector3 alertPosition)
     {
-        mainThreadQueue.Enqueue(() =>
+        Debug.Log($"[Unity] Camera Alert Received! Drone moving to investigate position: {alertPosition}");
+        lock (mainThreadQueue)
         {
-            StopAllCoroutines();
-            isInvestigating = true;
-
-            StartCoroutine(MoveDrone(alertPosition, () =>
+            mainThreadQueue.Enqueue(() =>
             {
-                Debug.Log("[Unity] Drone arrived at investigation site. Starting investigation...");
-                StartCoroutine(InvestigateArea(() =>
+                StopAllCoroutines();
+                isInvestigating = true;
+
+                StartCoroutine(MoveDrone(alertPosition, () =>
                 {
-                    Debug.Log("[Unity] Investigation complete. Resuming patrol...");
-                    currentWaypointIndex = 0;
-                    isInvestigating = false;
+                    Debug.Log("[Unity] Drone arrived at investigation site. Starting investigation...");
+                    StartCoroutine(InvestigateArea(() =>
+                    {
+                        Debug.Log("[Unity] Investigation complete. Resuming patrol...");
+                        currentWaypointIndex = 0;
+                        isInvestigating = false;
+                    }));
                 }));
-            }));
-        });
+            });
+        }
     }
-}
 
 
     private IEnumerator MoveDrone(Vector3 target, Action onArrival)
@@ -454,30 +454,6 @@ private void HandleCameraAlert(Vector3 alertPosition)
         }
     }
 
-    public void HandleDroneAlert(Vector3 alertPosition)
-    {
-        Debug.Log($"Drone Alert Received! Guard moving to investigate position: {alertPosition}");
-        MoveGuard(alertPosition);
-    }
-
-    private IEnumerator MoveGuard(Vector3 target, Action onArrival)
-    {
-        Debug.Log($"Guard moving to target position: {target}");
-        while (Vector3.Distance(guard.transform.position, target) > 0.1f)
-        {
-            float step = droneSpeed * Time.deltaTime;
-            guard.transform.position = Vector3.MoveTowards(guard.transform.position, target, step);
-            yield return null;
-        }
-        Debug.Log("Guard reached the target position.");
-        onArrival?.Invoke();
-    }
-
-    private void MoveGuard(Vector3 target)
-    {
-        StartCoroutine(MoveGuard(target, null));
-    }
-
     private void SendDroneCameraFrame(byte[] imageBytes)
     {
         if (ws.ReadyState == WebSocketState.Open)
@@ -491,6 +467,93 @@ private void HandleCameraAlert(Vector3 alertPosition)
             string jsonMessage = JsonUtility.ToJson(message);
             ws.Send(jsonMessage);
         }
+    }
+
+    public void HandleDroneAlert(Vector3 alertPosition)
+    {
+        Debug.Log($"[Unity] Drone Alert Received! Guard alerted");
+        
+        lock (mainThreadQueue)
+        {
+            mainThreadQueue.Enqueue(() =>
+            {
+                StopAllCoroutines();
+                isDroneControlled = true;
+
+                StartCoroutine(MoveGuard(controlStation, () =>
+                {
+                    Debug.Log("[Unity] Guard arrived to control station. Starting drone control...");
+
+                    SendGuardAtControlStationMessage();
+
+                    StartCoroutine(HandleControlStationProcedure(() =>
+                    {
+                        Debug.Log("[Unity] Guard finished drone control. Resuming patrol...");
+                        currentWaypointIndex = 0;
+                        isDroneControlled = false;
+                    }));
+                }));
+            });
+        }
+
+        // después de mover guard, añadir algo de que toma control del dron
+    }
+
+    private void SendGuardAtControlStationMessage()
+    {
+        if (ws.ReadyState == WebSocketState.Open)
+        {
+            var message = new Message
+            {
+                type = "guard_at_control_station",
+                status = "READY"
+            };
+
+            string jsonMessage = JsonUtility.ToJson(message);
+            ws.Send(jsonMessage);
+        }
+    }
+
+    private IEnumerator HandleControlStationProcedure(Action onComplete)
+    {
+        Debug.Log("Guard taking control of the drone...");
+        // aquí poner lo que sea que haga el guardia con el dron
+        // Wait for a few seconds to simulate drone control
+        for (int i = 0; i < 10; i++)
+        {
+            yield return null;
+        }
+
+        onComplete?.Invoke();
+    }
+
+    private IEnumerator MoveGuard(Vector3 target, Action onArrival)
+    {
+        Debug.Log($"Guard moving to control station: {target}");
+        while (Vector3.Distance(guard.transform.position, target) > 0.1f)
+        {
+            float step = guardSpeed * Time.deltaTime;
+            
+            guard.transform.position = Vector3.MoveTowards(guard.transform.position, target, step);
+            
+            Vector3 direction = (target - guard.transform.position).normalized;
+            if (direction != Vector3.zero)
+            {
+                Quaternion toRotation = Quaternion.LookRotation(direction, Vector3.up);
+                guard.transform.rotation = Quaternion.RotateTowards(guard.transform.rotation, toRotation, step * 100);
+            }
+            
+            yield return null;
+        }
+        
+        Debug.Log("Guard reached the control station.");
+        
+        onArrival?.Invoke();
+    }
+
+    private void MoveGuard(Vector3 target)
+    {
+        StartCoroutine(MoveGuard(target, null));
     }
 
     private void OnError(object sender, WebSocketSharp.ErrorEventArgs e)

@@ -11,13 +11,13 @@ class Personnel:
             'manual_control_instances': 0
         }
 
-    def take_control_of_drone(self, websocket):
+    async def take_control_of_drone(self, websocket):
         self.drone_control = True
         control_message = {
             "type": "guard_control",
             "status": "TAKE_CONTROL"
         }
-        websocket.send(json.dumps(control_message))
+        await websocket.send(json.dumps(control_message))
         print("Personnel has taken control of the drone.")
 
     def release_control_of_drone(self, websocket):

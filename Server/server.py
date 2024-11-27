@@ -66,6 +66,11 @@ async def handler(websocket):
                 target_position = data.get("target_position")
                 await drone.navigate_and_investigate(websocket, target_position)
 
+            elif message_type == "guard_at_control_station":
+                personnel.take_control_of_drone(websocket)
+
+            
+
 
     except Exception as e:
         print(f"[Server] Error: {e}")
