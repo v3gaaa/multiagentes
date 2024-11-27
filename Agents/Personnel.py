@@ -11,7 +11,7 @@ class Personnel:
             'manual_control_instances': 0
         }
 
-    def take_control_of_drone(self, drone, websocket):
+    def take_control_of_drone(self, websocket):
         self.drone_control = True
         control_message = {
             "type": "guard_control",
@@ -20,7 +20,7 @@ class Personnel:
         websocket.send(json.dumps(control_message))
         print("Personnel has taken control of the drone.")
 
-    def release_control_of_drone(self, drone, websocket):
+    def release_control_of_drone(self, websocket):
         self.drone_control = False
         control_message = {
             "type": "guard_control",
@@ -63,10 +63,6 @@ class Personnel:
                 self.success_metrics['correct_assessments'] / 
                 self.success_metrics['alerts_handled']
             )
-
-    def record_manual_control(self):
-        """Record instance of manual drone control"""
-        self.success_metrics['manual_control_instances'] += 1
 
     def get_success_rate(self):
         """Get the personnel's success rate"""

@@ -82,10 +82,6 @@ class Drone:
                 self.success_metrics['successful_detections'] / 
                 self.success_metrics['areas_investigated']
             )
-    
-    def record_patrol_completion(self):
-        """Record completion of a patrol route"""
-        self.success_metrics['patrols_completed'] += 1
 
     def get_success_rate(self):
         """Get the drone's success rate"""

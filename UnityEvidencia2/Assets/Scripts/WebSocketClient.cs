@@ -51,6 +51,11 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
+    private Vector3 ConvertToUnityPosition(Dictionary<string, float> position)
+    {
+        return new Vector3(position["x"], position["y"], position["z"]);
+    }
+
     private void PatrolDrone()
     {
         if (currentWaypointIndex >= patrolRoute.Count)
@@ -381,29 +386,23 @@ public class WebSocketClient : MonoBehaviour
 
     private void EnsureSingleAudioListener()
     {
-        AudioListener[] audioListeners = FindObjectsOfType<AudioListener>();
-        if (audioListeners.Length > 1)
+        // Find all AudioListeners in the scene
+        AudioListener[] listeners = FindObjectsOfType<AudioListener>();
+        
+        if (listeners.Length > 1)
         {
-            for (int i = 1; i < audioListeners.Length; i++)
+            // Keep the AudioListener on the main camera, disable others
+            Camera mainCamera = Camera.main;
+            foreach (AudioListener listener in listeners)
             {
-                audioListeners[i].enabled = false;
+                // If this listener is not on the main camera, disable it
+                if (listener.gameObject != mainCamera.gameObject)
+                {
+                    listener.enabled = false;
+                }
             }
-            Debug.LogWarning("Multiple AudioListeners found. Disabled all except one.");
+            Debug.Log("Disabled extra AudioListeners. Keeping only the one on Main Camera.");
         }
-    }
-
-    public void TakeControl()
-    {
-        var message = new Message { type = "manual_control", action = "take_control" };
-        ws.Send(JsonUtility.ToJson(message));
-        Debug.Log("Personnel took control of the drone.");
-    }
-
-    public void ReleaseControl()
-    {
-        var message = new Message { type = "manual_control", action = "release_control" };
-        ws.Send(JsonUtility.ToJson(message));
-        Debug.Log("Personnel released control of the drone.");
     }
 
     void OnDestroy()

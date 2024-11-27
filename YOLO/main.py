@@ -5,6 +5,7 @@ import json
 import cv2
 import numpy as np
 from pathlib import Path
+from utils.PositionUtils import PositionUtils
 
 # Initialize YOLO model
 print("Loading YOLO model...")
@@ -86,10 +87,8 @@ def save_image(base64_image, filename):
         return None
 
 async def alert_drone(websocket, anomalies, camera_position):
-    """Send alert to drone with detected anomalies"""
-    # alert_drone(websocket, scavenger_detections, self.position)
     if anomalies:
-        world_position = convert_yolo_to_unity_position(anomalies[0], camera_position)
+        world_position = PositionUtils.yolo_to_unity_position(anomalies[0], camera_position)
         alert_message = {
             "type": "camera_alert",
             "anomalies": anomalies,
@@ -100,34 +99,6 @@ async def alert_drone(websocket, anomalies, camera_position):
     else:
         print("No anomalies to alert about")
 
-def alert_personnel(websocket, anomalies):
-    """Send alert to personnel with detected anomalies"""
-    if anomalies:
-        alert_message = {
-            "type": "drone_alert",
-            "anomalies": anomalies,
-            "position": anomalies[0].get("position")
-        }
-        websocket.send(json.dumps(alert_message))
-        print("Alert sent to personnel:", alert_message)
-    else:
-        print("No anomalies to alert personnel about")
-
-def convert_yolo_to_unity_position(prediction, camera_position):
-    """Convert YOLO detection coordinates to Unity world position"""
-    x = prediction['x']  # Center x of detection
-    y = prediction['y']  # Center y of detection
-    
-    # Convert to world space (adjust multipliers based on your Unity scene scale)
-    world_x = camera_position['x'] + (x - 0.5) * 30
-    world_z = camera_position['z'] + (y - 0.5) * 30
-    world_y = 0  # Ground level
-    
-    return {
-        "x": world_x,
-        "y": world_y,
-        "z": world_z
-    }
 
 def handle_camera_frame(websocket, data):
     """Handle incoming camera frame"""
@@ -143,5 +114,3 @@ def handle_drone_camera_frame(websocket, data):
     image_path = save_image(data["image"], "drone_camera.jpg")
     if image_path:
         anomalies = detect_anomalies("drone_camera.jpg")
-        if anomalies:
-            alert_personnel(websocket, anomalies)
