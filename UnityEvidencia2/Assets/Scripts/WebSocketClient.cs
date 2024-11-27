@@ -20,6 +20,8 @@ public class WebSocketClient : MonoBehaviour
     private Vector3 landingStation = new Vector3(3, 0, 1);
     private Vector3 controlStation = new Vector3(14, 0, 1);
 
+    private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
+
     public float droneSpeed = 5f;
     public float guardSpeed = 3f;
 
@@ -30,26 +32,25 @@ public class WebSocketClient : MonoBehaviour
         ConnectWebSocket();
         StartCoroutine(SendCameraFrames());
         StartCoroutine(SendDroneCameraFrames());
-
-        ws = new WebSocket("ws://localhost:8765");
-        ws.OnMessage += (sender, e) =>
-        {
-            Debug.Log("Message from server: " + e.Data);
-        };
-        ws.Connect();
     }
 
     private void Update()
     {
+        // Ejecuta las acciones en cola
+        lock (mainThreadQueue)
+        {
+            while (mainThreadQueue.Count > 0)
+            {
+                mainThreadQueue.Dequeue().Invoke();
+            }
+        }
+
         if (!isDroneControlled && !isInvestigating)
         {
             PatrolDrone();
         }
-        else if (isDroneControlled)
-        {
-            Debug.Log("Drone is under manual control.");
-        }
     }
+
 
     private Vector3 ConvertToUnityPosition(Dictionary<string, float> position)
     {
@@ -61,7 +62,7 @@ public class WebSocketClient : MonoBehaviour
         if (currentWaypointIndex >= patrolRoute.Count)
         {
             // Drone lands when patrol completes
-            MoveDroneTo(landingStation);
+            MoveDrone(landingStation);
             Debug.Log("Drone returning to landing station.");
             return;
         }
@@ -204,34 +205,50 @@ public class WebSocketClient : MonoBehaviour
 
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
-        Debug.Log("Message received from server: " + e.Data);
-
         try
         {
+            Debug.Log("Message received from server: " + e.Data); 
+
             var data = JsonUtility.FromJson<Message>(e.Data);
             switch (data.type)
             {
                 case "camera_alert":
-                    // Log details of detected objects
-                    if (data.detections != null && data.detections.Count > 0)
+                    Debug.Log("[Unity] Camera Alert Data: " + JsonUtility.ToJson(data));
+                    if (data.position != null)
                     {
-                        foreach (var detection in data.detections)
+                        lock (mainThreadQueue)
                         {
-                            if (detection.className == "thiefs") // Check for enemies
+                            mainThreadQueue.Enqueue(() =>
                             {
-                                Debug.Log($"Enemy detected! Details: Position: ({detection.x}, {detection.y}), Size: {detection.width}x{detection.height}, Confidence: {detection.confidence}");
-                            }
+                                HandleCameraAlert(data.position);
+                            });
                         }
+                    }
+                    else
+                    {
+                        Debug.LogError("Camera alert received but position is null.");
                     }
                     break;
 
                 case "drone_control":
-                    isDroneControlled = data.status == "TAKE_CONTROL";
-                    Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
+                    lock (mainThreadQueue)
+                    {
+                        mainThreadQueue.Enqueue(() =>
+                        {
+                            isDroneControlled = data.status == "TAKE_CONTROL";
+                            Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
+                        });
+                    }
                     break;
 
                 case "alarm":
-                    Debug.Log(data.status == "ALERT" ? "ALERT! Real threat detected." : "False alarm.");
+                    lock (mainThreadQueue)
+                    {
+                        mainThreadQueue.Enqueue(() =>
+                        {
+                            Debug.Log(data.status == "ALERT" ? "ALERT! Real threat detected." : "False alarm.");
+                        });
+                    }
                     break;
 
                 default:
@@ -245,30 +262,66 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
-    private void MoveDroneTo(Vector3 target)
-    {
-        StopAllCoroutines(); // Stop patrol
-        StartCoroutine(MoveDrone(target));
-    }
 
-    private IEnumerator MoveDrone(Vector3 target)
+
+
+private void HandleCameraAlert(Vector3 alertPosition)
+{
+    Debug.Log($"[Unity] Camera Alert Received! Drone moving to investigate position: {alertPosition}");
+    lock (mainThreadQueue)
     {
+        mainThreadQueue.Enqueue(() =>
+        {
+            StopAllCoroutines();
+            isInvestigating = true;
+
+            StartCoroutine(MoveDrone(alertPosition, () =>
+            {
+                Debug.Log("[Unity] Drone arrived at investigation site. Starting investigation...");
+                StartCoroutine(InvestigateArea(() =>
+                {
+                    Debug.Log("[Unity] Investigation complete. Resuming patrol...");
+                    currentWaypointIndex = 0;
+                    isInvestigating = false;
+                }));
+            }));
+        });
+    }
+}
+
+
+    private IEnumerator MoveDrone(Vector3 target, Action onArrival)
+    {
+        Debug.Log($"Drone moving to target position: {target}");
         while (Vector3.Distance(drone.transform.position, target) > 0.1f)
         {
             float step = droneSpeed * Time.deltaTime;
             drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
             yield return null;
         }
+        Debug.Log("Drone reached the target position.");
+        onArrival?.Invoke();
+    }
 
-        // Simulate investigation
+    private void MoveDrone(Vector3 target)
+    {
+        StartCoroutine(MoveDrone(target, null));
+    }
+
+    private IEnumerator InvestigateArea(Action onComplete)
+    {
+        Debug.Log("Drone investigating the area...");
         yield return new WaitForSeconds(5f);
 
-        // Notify server to analyze drone image
         byte[] droneImageBytes = CaptureDroneCameraFrame();
         SendDroneCameraFrame(droneImageBytes);
 
+        Debug.Log("Drone investigation complete. Resuming patrol...");
+        currentWaypointIndex = 0; // Reiniciar patrullaje
         isInvestigating = false;
+        onComplete?.Invoke();
     }
+
 
     private byte[] CaptureDroneCameraFrame()
     {
@@ -386,16 +439,12 @@ public class WebSocketClient : MonoBehaviour
 
     private void EnsureSingleAudioListener()
     {
-        // Find all AudioListeners in the scene
         AudioListener[] listeners = FindObjectsOfType<AudioListener>();
-        
         if (listeners.Length > 1)
         {
-            // Keep the AudioListener on the main camera, disable others
             Camera mainCamera = Camera.main;
             foreach (AudioListener listener in listeners)
             {
-                // If this listener is not on the main camera, disable it
                 if (listener.gameObject != mainCamera.gameObject)
                 {
                     listener.enabled = false;
@@ -410,9 +459,7 @@ public class WebSocketClient : MonoBehaviour
         ws.Close();
     }
 
-    
-
-        [Serializable]
+    [Serializable]
     private class Message
     {
         public string type;

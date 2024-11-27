@@ -4,72 +4,86 @@ from YOLO.main import detect_anomalies
 import time
 
 class Drone:
-    def __init__(self, position, patrol_route):
+    def __init__(self, position, patrol_route, boundaries):
         self.position = position
         self.patrol_route = patrol_route
         self.current_target = None
         self.investigating = False
         self.confidence_threshold = 0.7
+        self.boundaries = boundaries  # (x_min, x_max, y_min, y_max, z_min, z_max)
+
+    def is_within_boundaries(self, position):
+        """Validate if a position is within warehouse boundaries."""
+        x_min, x_max, y_min, y_max, z_min, z_max = self.boundaries
+        return (
+            x_min <= position["x"] <= x_max
+            and y_min <= position["y"] <= y_max
+            and z_min <= position["z"] <= z_max
+        )
 
     async def navigate_and_investigate(self, websocket, target_position):
-        """Navigate to target position and begin investigation"""
+        """Navigate to target position and begin investigation."""
         try:
-            print(f"Drone navigating to position: {target_position}")
+            if not self.is_within_boundaries(target_position):
+                print(f"[Drone] Target position {target_position} is outside warehouse boundaries.")
+                return
+
+            print(f"[Drone] Navigating to position: {target_position}")
             self.position = target_position
             self.current_target = target_position
             self.investigating = True
+
+            # Notify Unity to pause patrol and move to investigation
+            command = {
+                "type": "drone_investigation_command",
+                "target_position": target_position
+            }
+            await websocket.send(json.dumps(command))
         except Exception as e:
-            print(f"Error during drone navigation: {e}")
+            print(f"[Drone] Error during navigation: {e}")
 
     async def investigate_area(self, websocket, image_data):
-        """Process drone camera feed and detect threats"""
-        print("Investigating area...")
-        
+        """Process drone camera feed and detect threats."""
+        print("[Drone] Analyzing Drone Camera...")
+
         # Save and process image
         image_path = "images/drone_image.jpg"
         with open(image_path, "wb") as img_file:
             img_file.write(base64.b64decode(image_data))
 
-        # Detect specifically scavengers
+        # Detect anomalies
         detections = detect_anomalies("drone_image.jpg")
-        print(f"Raw detections from drone: {detections}")
-        
-        # Filter high confidence detections
-        high_confidence_detections = []
-        for detection in detections:
-            if detection['class'] == 'thiefs' and detection['confidence'] > self.confidence_threshold:
-                # Convert coordinates
-                world_pos = {
-                    'x': self.position['x'] + (detection['x'] - 0.5) * 30,
-                    'y': self.position['y'],
-                    'z': self.position['z'] + (detection['y'] - 0.5) * 30
+        print(f"[Drone] Raw detections: {detections}")
+
+        high_confidence_detections = [
+            {
+                "x": detection["x"],
+                "y": detection["y"],
+                "width": detection.get("width", 0),
+                "height": detection.get("height", 0),
+                "confidence": detection["confidence"],
+                "className": detection["class"],
+                "world_position": {
+                    "x": self.position["x"] + (detection["x"] - 0.5) * 30,
+                    "y": self.position["y"],
+                    "z": self.position["z"] + (detection["y"] - 0.5) * 30
                 }
-                
-                detection_data = {
-                    "x": detection["x"],
-                    "y": detection["y"],
-                    "width": detection.get("width", 0),
-                    "height": detection.get("height", 0),
-                    "confidence": detection["confidence"],
-                    "className": "thiefs",
-                    "world_position": world_pos
-                }
-                high_confidence_detections.append(detection_data)
+            }
+            for detection in detections
+            if detection["class"] == "thiefs" and detection["confidence"] >= self.confidence_threshold
+        ]
 
         if high_confidence_detections:
-            # Take highest confidence detection
-            primary_detection = max(high_confidence_detections, key=lambda x: x['confidence'])
-            
+            primary_detection = max(high_confidence_detections, key=lambda x: x["confidence"])
             alert_message = {
                 "type": "drone_alert",
                 "detection": primary_detection,
                 "position": primary_detection["world_position"],
                 "timestamp": time.time()
             }
-            
-            print(f"Drone sending alert: {alert_message}")
+            print(f"[Drone] High-confidence detection found. Sending alert: {alert_message}")
             await websocket.send(json.dumps(alert_message))
-            print("Alert sent to personnel: High-confidence scavenger detected!")
         else:
-            print("No high-confidence scavenger found.")
-            self.investigating = False
+            print("[Drone] No high-confidence detections found.")
+
+        self.investigating = False

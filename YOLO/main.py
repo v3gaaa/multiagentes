@@ -28,7 +28,7 @@ def detect_anomalies(image_name):
     """
     image_path = os.path.join(IMAGE_FOLDER, image_name)
     try:
-        print(f"Performing inference on {image_name}...")
+        print(f"[YOLO] Performing inference on {image_name}...")
         
         # Run inference
         results = model(image_path)
@@ -64,7 +64,7 @@ def detect_anomalies(image_name):
             }
             predictions.append(prediction)
         
-        print(f"Detected objects in {image_name}: {predictions}")
+        print(f"[YOLO] Detected objects in {image_name}: {predictions}")
         return predictions
         
     except Exception as e:
@@ -95,7 +95,7 @@ async def alert_drone(websocket, anomalies, camera_position):
             "target_position": world_position
         }
         await websocket.send(json.dumps(alert_message))
-        print(f"Alert sent to drone. Position: {world_position}")
+        print(f"[YOLO] Alert sent to drone. Position: {world_position}")
     else:
         print("No anomalies to alert about")
 
