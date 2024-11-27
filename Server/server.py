@@ -66,6 +66,7 @@ async def handler(websocket):
                 target_position = data.get("target_position")
                 await drone.navigate_and_investigate(websocket, target_position)
 
+
     except Exception as e:
         print(f"[Server] Error: {e}")
 

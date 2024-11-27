@@ -250,6 +250,24 @@ public class WebSocketClient : MonoBehaviour
                         });
                     }
                     break;
+                
+                case "drone_alert":
+                    lock (mainThreadQueue)
+                    {
+                        mainThreadQueue.Enqueue(() =>
+                        {
+                            Debug.Log("Drone Alert Data: " + JsonUtility.ToJson(data));
+                            if (data.position != null)
+                            {
+                                HandleDroneAlert(data.position);
+                            }
+                            else
+                            {
+                                Debug.LogError("Drone alert received but position is null.");
+                            }
+                        });
+                    }
+                    break;
 
                 default:
                     Debug.LogWarning("Unknown message type received.");
@@ -341,9 +359,6 @@ private void HandleCameraAlert(Vector3 alertPosition)
         isInvestigating = false;
         onComplete?.Invoke();
     }
-
-
-
 
     private byte[] CaptureDroneCameraFrame()
     {
@@ -437,6 +452,30 @@ private void HandleCameraAlert(Vector3 alertPosition)
             string jsonMessage = JsonUtility.ToJson(message);
             ws.Send(jsonMessage);
         }
+    }
+
+    public void HandleDroneAlert(Vector3 alertPosition)
+    {
+        Debug.Log($"Drone Alert Received! Guard moving to investigate position: {alertPosition}");
+        MoveGuard(alertPosition);
+    }
+
+    private IEnumerator MoveGuard(Vector3 target, Action onArrival)
+    {
+        Debug.Log($"Guard moving to target position: {target}");
+        while (Vector3.Distance(guard.transform.position, target) > 0.1f)
+        {
+            float step = droneSpeed * Time.deltaTime;
+            guard.transform.position = Vector3.MoveTowards(guard.transform.position, target, step);
+            yield return null;
+        }
+        Debug.Log("Guard reached the target position.");
+        onArrival?.Invoke();
+    }
+
+    private void MoveGuard(Vector3 target)
+    {
+        StartCoroutine(MoveGuard(target, null));
     }
 
     private void SendDroneCameraFrame(byte[] imageBytes)
