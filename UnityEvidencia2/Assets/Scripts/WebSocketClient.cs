@@ -311,7 +311,27 @@ private void HandleCameraAlert(Vector3 alertPosition)
     private IEnumerator InvestigateArea(Action onComplete)
     {
         Debug.Log("Drone investigating the area...");
-        yield return new WaitForSeconds(5f);
+
+        // Calcular una posición ajustada cerca del área investigada
+        Vector3 adjustedTarget = new Vector3(12, drone.transform.position.y, 15); // Ajusta según el área relevante
+        Quaternion lookAtTarget = Quaternion.LookRotation(adjustedTarget - drone.transform.position);
+
+        // Rotar suavemente hacia la posición ajustada
+        while (Quaternion.Angle(drone.transform.rotation, lookAtTarget) > 0.1f)
+        {
+            drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, lookAtTarget, Time.deltaTime * 100);
+            yield return null;
+        }
+
+        // Realizar paneo durante la investigación
+        float investigationTime = 5f;
+        float elapsed = 0f;
+        while (elapsed < investigationTime)
+        {
+            drone.transform.Rotate(Vector3.up, Mathf.Sin(elapsed * Mathf.PI) * 10 * Time.deltaTime); // Paneo más sutil
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
 
         byte[] droneImageBytes = CaptureDroneCameraFrame();
         SendDroneCameraFrame(droneImageBytes);
@@ -321,6 +341,8 @@ private void HandleCameraAlert(Vector3 alertPosition)
         isInvestigating = false;
         onComplete?.Invoke();
     }
+
+
 
 
     private byte[] CaptureDroneCameraFrame()

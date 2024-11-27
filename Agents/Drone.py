@@ -26,9 +26,12 @@ class Drone:
         try:
             if not self.is_within_boundaries(target_position):
                 print(f"[Drone] Target position {target_position} is outside warehouse boundaries.")
-                return
+                # Ajustar a la posición más cercana dentro de los límites
+                target_position["x"] = max(min(target_position["x"], self.boundaries[1]), self.boundaries[0])
+                target_position["y"] = max(min(target_position["y"], self.boundaries[3]), self.boundaries[2])
+                target_position["z"] = max(min(target_position["z"], self.boundaries[5]), self.boundaries[4])
 
-            print(f"[Drone] Navigating to position: {target_position}")
+            print(f"[Drone] Navigating to adjusted position: {target_position}")
             self.position = target_position
             self.current_target = target_position
             self.investigating = True
@@ -41,6 +44,7 @@ class Drone:
             await websocket.send(json.dumps(command))
         except Exception as e:
             print(f"[Drone] Error during navigation: {e}")
+
 
     async def investigate_area(self, websocket, image_data):
         """Process drone camera feed and detect threats."""

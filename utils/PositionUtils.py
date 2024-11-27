@@ -2,30 +2,32 @@
 
 class PositionUtils:
     @staticmethod
-    def yolo_to_unity_position(prediction, camera_position):
+    def yolo_to_unity_position(detection, camera_position, boundaries):
         """
-        Convert YOLO detection coordinates to Unity world position
-        
-        Args:
-            prediction (dict): YOLO detection with x,y coordinates (0-1 range)
-            camera_position (dict): Camera position in Unity world space
-        
-        Returns:
-            dict: Position in Unity world coordinates
+        Convert YOLO detection coordinates to Unity world space with adjusted target position.
         """
-        x = prediction['x']  # Center x of detection
-        y = prediction['y']  # Center y of detection
-        
-        # Convert to world space (30 units is the scene scale)
-        world_x = camera_position['x'] + (x - 0.5) * 30
-        world_z = camera_position['z'] + (y - 0.5) * 30
-        world_y = camera_position.get('y', 0)  # Use camera height or default to ground level
-        
-        return {
-            "x": world_x,
-            "y": world_y,
-            "z": world_z
-        }
+        try:
+            normalized_x = detection["x"]
+            normalized_y = detection["y"]
+
+            # Adjust target position to be closer to the camera and away from edges
+            offset = 5  # Offset to keep the drone closer to the camera's center
+            world_x = camera_position["x"] + (normalized_x - 0.5) * 15 + offset
+            world_y = camera_position["y"]
+            world_z = camera_position["z"] + (normalized_y - 0.5) * 15 + offset
+
+            # Ensure the position is within boundaries
+            x_min, x_max, y_min, y_max, z_min, z_max = boundaries
+            world_x = max(min(world_x, x_max - 3), x_min + 3)
+            world_y = max(min(world_y, y_max), y_min)
+            world_z = max(min(world_z, z_max - 3), z_min + 3)
+
+            return {"x": world_x, "y": world_y, "z": world_z}
+        except KeyError as e:
+            print(f"[PositionUtils] Missing key in detection data: {e}")
+            return None
+
+
     
     @staticmethod
     def unity_to_yolo_position(world_position, camera_position):

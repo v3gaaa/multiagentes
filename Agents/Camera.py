@@ -26,7 +26,7 @@ class Camera:
         for detection in detections:
             if detection["class"] == "thiefs" and detection["confidence"] >= self.confidence_threshold:
                 # Calcular posición mundial
-                detection["world_position"] = PositionUtils.yolo_to_unity_position(detection, self.position)
+                detection["world_position"] = PositionUtils.yolo_to_unity_position(detection, self.position, boundaries=(0, 24, 0, 9, 0, 30))
                 high_confidence_detections.append(detection)
 
         if high_confidence_detections:
