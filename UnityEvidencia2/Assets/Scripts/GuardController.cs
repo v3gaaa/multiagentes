@@ -13,11 +13,9 @@ public class GuardController : MonoBehaviour
     //[SerializeField] private float rotationSpeed = 100f;
 
     private NavMeshAgent agent;
-    private int currentWaypointIndex = 0;
     private bool isMovingToTarget = false;
     private Animator animator; 
     private GameController gameController;
-    private List<Vector3> patrolRoute;
 
     private Vector3 controlStationPosition;
     private bool isAtControlStation = false;
@@ -29,14 +27,16 @@ public class GuardController : MonoBehaviour
         agent.speed = moveSpeed;
         gameController = FindObjectOfType<GameController>();
 
-        patrolRoute = new List<Vector3>
-        {
-            new Vector3(21, 0, 3)
-        };
+        // Comenta o elimina estas líneas
+        //patrolRoute = new List<Vector3>
+        //{
+        //    new Vector3(21, 0, 3)
+        //};
 
         controlStationPosition = new Vector3(14f, 0f, 1f);
 
-        MoveToNextWaypoint();
+        // Comenta o elimina esta línea
+        //MoveToNextWaypoint();
     }
 
     void Update()
@@ -44,13 +44,13 @@ public class GuardController : MonoBehaviour
         if (isMovingToTarget)
         {
             agent.SetDestination(agent.destination);
-            
-            // Check if reached the target (could be scavenger or control station)
+
+            // Verifica si ha llegado al destino (puede ser un intruso o la estación de control)
             if (Vector3.Distance(transform.position, agent.destination) <= catchDistance)
             {
                 isMovingToTarget = false;
-                
-                // If at control station, start staying timer
+
+                // Si está en la estación de control, inicia la rutina para quedarse allí
                 if (IsAtControlStation())
                 {
                     StartCoroutine(StayAtControlStation());
@@ -62,6 +62,8 @@ public class GuardController : MonoBehaviour
                 }
             }
         }
+        // Elimina o comenta este bloque
+        /*
         else
         {
             if (!agent.pathPending && agent.remainingDistance < 0.5f)
@@ -69,13 +71,15 @@ public class GuardController : MonoBehaviour
                 MoveToNextWaypoint();
             }
         }
+        */
 
-        // Update animation if available
+        // Actualiza la animación si está disponible
         if (animator != null)
         {
             animator.SetBool("IsMoving", agent.velocity.magnitude > 0.1f);
         }
     }
+
 
     // New method to move to control station
     public void MoveToControlStation()
@@ -97,28 +101,21 @@ public class GuardController : MonoBehaviour
         isAtControlStation = true;
         Debug.Log("Guard arrived at control station.");
 
-        // Wait for specified number of frames
-        for (float timer = 0; timer < controlStationStayDuration; timer += Time.deltaTime)
-        {
-            yield return null;
-        }
+        // Elimina el temporizador si quieres que se quede allí para siempre
+        // Si deseas que realice alguna acción, puedes mantenerlo o ajustarlo
+        //yield return new WaitForSeconds(controlStationStayDuration);
 
-        isAtControlStation = false;
-        Debug.Log("Guard finished staying at control station.");
+        // Elimina o comenta estas líneas
+        //isAtControlStation = false;
+        //Debug.Log("Guard finished staying at control station.");
+        //MoveToNextWaypoint();
 
-        // Resume patrol or other previous activities
-        MoveToNextWaypoint();
+        // El guardia se queda en la estación de control indefinidamente
+        yield break;
     }
 
-    private void MoveToNextWaypoint()
-    {
-        if (patrolRoute.Count == 0)
-            return;
 
-        agent.SetDestination(patrolRoute[currentWaypointIndex]);
-        currentWaypointIndex = (currentWaypointIndex + 1) % patrolRoute.Count;
-        //Debug.Log("Guard moving to waypoint: " + currentWaypointIndex);
-    }
+
 
     public void MoveToAlert(Vector3 alertPosition)
     {

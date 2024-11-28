@@ -14532,24 +14532,32 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 4693764197375854907, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4693764197375854907, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: 564e8c476c1000c43a08794446fa3a04, type: 2}
+    - target: {fileID: 4693764197375854907, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4693764197385354081, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_Name
       value: Guard
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.2021
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalScale.y
-      value: 2.2021
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalScale.z
-      value: 2.2021
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalPosition.x
