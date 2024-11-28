@@ -17,7 +17,7 @@ public class ScavengerController : MonoBehaviour
         }
 
         // Configure NavMeshAgent
-        agent.speed = 3.5f;
+        agent.speed = 2.5f;
         agent.acceleration = 12.0f;
         agent.angularSpeed = 360f;
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance; // Smooth obstacle avoidance
