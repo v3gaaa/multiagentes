@@ -51,7 +51,7 @@ async def handler(websocket):
         async for message in websocket:
             data = json.loads(message)
             message_type = data.get("type")
-            print(f"[Server] Received message")
+            print(f"[Server] Received message of type: {message_type}")
 
             if message_type == "camera_frame":
                 camera_id = data["camera_id"]
@@ -66,11 +66,11 @@ async def handler(websocket):
                 target_position = data.get("target_position")
                 await drone.navigate_and_investigate(websocket, target_position)
 
-            elif message_type == "guard_at_control_station":
-                await personnel.take_control_of_drone(websocket)
-
-            
-
+            elif message_type == "guard_control":
+                if data.get("status") == "TAKE_CONTROL":
+                    await personnel.handle_guard_control(websocket, drone)
+                elif data.get("status") == "RELEASE_CONTROL":
+                    await personnel.release_control_of_drone()
 
     except Exception as e:
         print(f"[Server] Error: {e}")

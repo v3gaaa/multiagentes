@@ -230,19 +230,6 @@ public class WebSocketClient : MonoBehaviour
                     }
                     break;
 
-                case "guard_control":
-                    // el guardia ya tiene el control, hacer un recorrido con el dron
-                    // buscándolo, mientras el guardia sigue en la control station
-                    lock (mainThreadQueue)
-                    {
-                        mainThreadQueue.Enqueue(() =>
-                        {
-                            isDroneControlled = data.status == "TAKE_CONTROL";
-                            Debug.Log(isDroneControlled ? "Personnel took control of the drone." : "Personnel released control of the drone.");
-                        });
-                    }
-                    break;
-
                 case "alarm":
                     lock (mainThreadQueue)
                     {
@@ -485,13 +472,24 @@ public class WebSocketClient : MonoBehaviour
                 StopAllCoroutines();
                 isDroneControlled = true;
 
+                if (ws.ReadyState == WebSocketState.Open)
+                {
+                    var message = new Message
+                    {
+                        type = "guard_control",
+                        status = "TAKE_CONTROL",
+                        position = alertPosition
+                    };
+
+                    string jsonMessage = JsonUtility.ToJson(message);
+                    ws.Send(jsonMessage);
+                }
+
                 StartCoroutine(MoveGuard(controlStation, () =>
                 {
                     Debug.Log("[Unity] Guard arrived to control station. Starting drone control...");
 
-                    SendGuardAtControlStationMessage();
-
-                    StartCoroutine(HandleControlStationProcedure(() =>
+                    StartCoroutine(HandleDroneInvestigationLap(() =>
                     {
                         Debug.Log("[Unity] Guard finished drone control. Resuming patrol...");
                         currentWaypointIndex = 0;
@@ -500,36 +498,52 @@ public class WebSocketClient : MonoBehaviour
                 }));
             });
         }
-
-        // después de mover guard, añadir algo de que toma control del dron
     }
 
-    private void SendGuardAtControlStationMessage()
+    private IEnumerator HandleDroneInvestigationLap(Action onArrival = null)
     {
-        if (ws.ReadyState == WebSocketState.Open)
+        Vector3[] investigationRoute = new Vector3[]
         {
-            var message = new Message
+            new Vector3(4, 7, 3),
+            new Vector3(14, 7, 15),
+            new Vector3(21, 7, 27),
+            new Vector3(8, 7, 20),
+            new Vector3(16, 7, 10)
+        };
+
+        isInvestigating = true;
+
+        foreach (Vector3 waypoint in investigationRoute)
+        {
+            yield return StartCoroutine(MoveDrone(waypoint, () =>
             {
-                type = "guard_at_control_station",
-                status = "READY"
-            };
-
-            string jsonMessage = JsonUtility.ToJson(message);
-            ws.Send(jsonMessage);
+                StartCoroutine(InvestigateArea(() =>
+                {
+                    Debug.Log("[Unity] Investigation finished...");
+                    currentWaypointIndex = 0;
+                    isInvestigating = false;
+                }));
+            }));
         }
-    }
 
-    private IEnumerator HandleControlStationProcedure(Action onComplete)
-    {
-        Debug.Log("Guard taking control of the drone...");
-        // aquí poner lo que sea que haga el guardia con el dron
-        // Wait for a few seconds to simulate drone control
-        for (int i = 0; i < 10; i++)
+        // After investigation lap, return to landing station
+        yield return StartCoroutine(MoveDrone(landingStation, () =>
         {
-            yield return null;
-        }
+            // Send message that investigation is complete
+            if (ws.ReadyState == WebSocketState.Open)
+            {
+                var message = new Message
+                {
+                    type = "guard_control",
+                    status = "RELEASE_CONTROL"
+                };
 
-        onComplete?.Invoke();
+                string jsonMessage = JsonUtility.ToJson(message);
+                ws.Send(jsonMessage);
+
+                onArrival?.Invoke();
+            }
+        }));
     }
 
     private IEnumerator MoveGuard(Vector3 target, Action onArrival)

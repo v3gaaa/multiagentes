@@ -1,4 +1,5 @@
 import json
+import asyncio
 
 class Personnel:
     def __init__(self, control_station):
@@ -11,23 +12,38 @@ class Personnel:
             'manual_control_instances': 0
         }
 
-    async def take_control_of_drone(self, websocket):
+    async def handle_guard_control(self, websocket, drone):
+        """
+        Handle guard control of the drone, keeping the guard at the control station
+        and initiating a drone investigation lap
+        """
+        print("[Personnel] Guard taking control of the drone for investigation")
+        
         self.drone_control = True
-        control_message = {
-            "type": "guard_control",
-            "status": "TAKE_CONTROL"
-        }
-        await websocket.send(json.dumps(control_message))
-        print("[Personnel] Personnel has taken control of the drone.")
+        
+        # Define an investigation route that covers the warehouse area
+        investigation_route = [
+            {"x": 4, "y": 8, "z": 3},
+            {"x": 14, "y": 8, "z": 15},
+            {"x": 21, "y": 8, "z": 27},
+            {"x": 8, "y": 8, "z": 20},
+            {"x": 16, "y": 8, "z": 10}
+        ]
+        
+        for waypoint in investigation_route:
+            investigation_command = {
+                "type": "drone_investigation_command",
+                "target_position": waypoint
+            }
+            await websocket.send(json.dumps(investigation_command))
+        
+            await asyncio.sleep(2)
+        
+        # self.release_control_of_drone()
 
-    def release_control_of_drone(self, websocket):
+    async def release_control_of_drone(self):
         self.drone_control = False
-        control_message = {
-            "type": "guard_control",
-            "status": "RELEASE_CONTROL"
-        }
-        websocket.send(json.dumps(control_message))
-        print("Personnel has released control of the drone.")
+        print("[Personnel] Personnel has released control of the drone.")
 
     def handle_alert(self, websocket, alert_data):
         print(f"Handling alert: {alert_data}")
