@@ -520,6 +520,7 @@ public class WebSocketClient : MonoBehaviour
                 StartCoroutine(InvestigateArea(() =>
                 {
                     Debug.Log("[Unity] Investigation finished...");
+                    HandleAlertSystem(); //Alert System Corroutine
                     currentWaypointIndex = 0;
                     isInvestigating = false;
                 }));
@@ -600,6 +601,48 @@ public class WebSocketClient : MonoBehaviour
     void OnDestroy()
     {
         ws.Close();
+    }
+    public void HandleAlertSystem()
+    {
+        Debug.Log("Drone alert received - initiating warning lights");
+        // Start the coroutine for flashing red lights
+        // Using 5 seconds duration and 0.5 second interval as example values
+        StartCoroutine(FlickerLightsRed(5f, 0.5f));
+    }
+
+    private IEnumerator FlickerLightsRed(float duration, float interval)
+    {
+        //Debug.Log("First case");
+        Light[] lights = FindObjectsOfType<Light>();
+        float elapsedTime = 0f;
+        bool lightsOn = true;
+        //Debug.Log("Second case");
+        // Store original light colors to restore later
+        Dictionary<Light, Color> originalColors = new Dictionary<Light, Color>();
+        //Debug.Log("Third case");
+        foreach (Light light in lights)
+        {
+            originalColors[light] = light.color;
+        }
+
+        while (elapsedTime < duration)
+        {
+            foreach (Light light in lights)
+            {
+                light.enabled = lightsOn;
+                light.color = Color.red;
+            }
+            lightsOn = !lightsOn;
+            yield return new WaitForSeconds(interval);
+            elapsedTime += interval;
+        }
+
+        // Reset lights to original state
+        foreach (Light light in lights)
+        {
+            light.enabled = true;
+            light.color = originalColors[light];
+        }
     }
 
     [Serializable]
