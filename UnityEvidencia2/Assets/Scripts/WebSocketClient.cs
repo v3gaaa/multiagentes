@@ -427,7 +427,6 @@ public class WebSocketClient : MonoBehaviour
                 if (imageBytes.Length > 0)
                 {
                     SendCameraFrame(cameraId, imageBytes);
-                    //Debug.Log($"Sent frame from camera {cameraId}");
                 }
                 else
                 {
@@ -435,7 +434,7 @@ public class WebSocketClient : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(2f); // Reduce the interval to 2 seconds
+            yield return new WaitForSeconds(0.5f); // Reduce the interval to 0.5 seconds
         }
     }
 
@@ -633,6 +632,8 @@ public class WebSocketClient : MonoBehaviour
         yield return StartCoroutine(SmoothMoveDrone(landingStation, () =>
         {
             Debug.Log("[Unity] Drone has returned to landing station.");
+            Debug.Log("[Unity] Ending simulation.");
+            Application.Quit();
         }));
 
         isInvestigating = false;

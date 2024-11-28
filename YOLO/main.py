@@ -100,17 +100,19 @@ async def alert_drone(websocket, anomalies, camera_position):
         print("No anomalies to alert about")
 
 
-def handle_camera_frame(websocket, data):
+async def handle_camera_frame(websocket, data):
     """Handle incoming camera frame"""
     camera_id = data["camera_id"]
     image_path = save_image(data["image"], f"camera_{camera_id}.jpg")
     if image_path:
         anomalies = detect_anomalies(f"camera_{camera_id}.jpg")
         if anomalies:
-            alert_drone(websocket, anomalies, data["camera_position"])
+            await alert_drone(websocket, anomalies, data["camera_position"])
 
-def handle_drone_camera_frame(websocket, data):
+async def handle_drone_camera_frame(websocket, data):
     """Handle incoming drone camera frame"""
     image_path = save_image(data["image"], "drone_camera.jpg")
     if image_path:
         anomalies = detect_anomalies("drone_camera.jpg")
+        if anomalies:
+            await alert_drone(websocket, anomalies, data["camera_position"])

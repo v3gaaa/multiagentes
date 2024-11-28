@@ -37,7 +37,7 @@ class Personnel:
             }
             await websocket.send(json.dumps(investigation_command))
         
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)  # Reduce the interval to 0.5 seconds
         
         # self.release_control_of_drone()
 
