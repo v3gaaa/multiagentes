@@ -435,7 +435,7 @@ public class WebSocketClient : MonoBehaviour
                 }
             }
 
-            yield return new WaitForSeconds(5f); //Speed to change pictirus
+            yield return new WaitForSeconds(2f); // Reduce the interval to 2 seconds
         }
     }
 
@@ -449,7 +449,7 @@ public class WebSocketClient : MonoBehaviour
                 SendDroneCameraFrame(imageBytes);
             }
 
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(0.5f); // Reduce the interval to 0.5 seconds
         }
     }
 
@@ -569,7 +569,11 @@ public class WebSocketClient : MonoBehaviour
             new Vector3(14, 7, 15),
             new Vector3(21, 7, 27),
             new Vector3(8, 7, 20),
-            new Vector3(16, 7, 10)
+            new Vector3(16, 7, 10),
+            new Vector3(10, 7, 5),
+            new Vector3(18, 7, 25),
+            new Vector3(6, 7, 18),
+            new Vector3(12, 7, 12)
         };
 
         isInvestigating = true;
@@ -583,14 +587,14 @@ public class WebSocketClient : MonoBehaviour
             {
                 Vector3 target = investigationRoute[i];
                 Debug.Log($"[Unity] Moving to waypoint {i + 1}: {target}");
-                yield return StartCoroutine(MoveDrone(target, () =>
+                yield return StartCoroutine(SmoothMoveDrone(target, () =>
                 {
                     Debug.Log("[Unity] Drone reached waypoint. Capturing frame for analysis.");
                     byte[] droneImageBytes = CaptureDroneCameraFrame();
                     SendDroneCameraFrame(droneImageBytes);
                 }));
 
-                yield return new WaitForSeconds(2f);
+                yield return new WaitForSeconds(1f); // Reduce the interval to 1 second
 
                 // Verifica si hay detección después de cada punto
                 if (CheckForDetection())
@@ -626,7 +630,7 @@ public class WebSocketClient : MonoBehaviour
         }
 
         Debug.Log("[Unity] Investigation complete. Returning to landing station.");
-        yield return StartCoroutine(MoveDrone(landingStation, () =>
+        yield return StartCoroutine(SmoothMoveDrone(landingStation, () =>
         {
             Debug.Log("[Unity] Drone has returned to landing station.");
         }));
@@ -649,8 +653,28 @@ public class WebSocketClient : MonoBehaviour
         onArrival?.Invoke();
     }
 
+    private IEnumerator SmoothMoveDrone(Vector3 target, Action onArrival)
+    {
+        Debug.Log($"Drone moving to target position: {target}");
+        while (Vector3.Distance(drone.transform.position, target) > 0.1f)
+        {
+            float step = droneSpeed * Time.deltaTime;
+            drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
 
+            // Adjust rotation smoothly towards the center
+            Vector3 center = new Vector3(12, drone.transform.position.y, 15);
+            Vector3 direction = (center - drone.transform.position).normalized;
+            if (direction != Vector3.zero)
+            {
+                Quaternion toRotation = Quaternion.LookRotation(direction, Vector3.up);
+                drone.transform.rotation = Quaternion.RotateTowards(drone.transform.rotation, toRotation, step * 100);
+            }
 
+            yield return null;
+        }
+        Debug.Log("Drone reached the target position.");
+        onArrival?.Invoke();
+    }
 
     private bool CheckForDetection()
     {
