@@ -25,6 +25,9 @@ public class WebSocketClient : MonoBehaviour
     public float droneSpeed = 5f;
     public float guardSpeed = 5f;
 
+    private List<Detection> latestDetections = new List<Detection>();
+
+
     private void Start()
     {
         EnsureSingleAudioListener();
@@ -59,6 +62,12 @@ public class WebSocketClient : MonoBehaviour
 
     private void PatrolDrone()
     {
+        if (isDroneControlled || isInvestigating)
+        {
+            // Skip automated patrol if the drone is under manual control or investigating
+            return;
+        }
+
         if (currentWaypointIndex >= patrolRoute.Count)
         {
             // Drone lands when patrol completes
@@ -71,7 +80,7 @@ public class WebSocketClient : MonoBehaviour
         float step = droneSpeed * Time.deltaTime;
         drone.transform.position = Vector3.MoveTowards(drone.transform.position, target, step);
 
-        // Ajustar la rotación del dron
+        // Adjust rotation
         Vector3 direction = (target - drone.transform.position).normalized;
         if (direction != Vector3.zero)
         {
@@ -258,6 +267,16 @@ public class WebSocketClient : MonoBehaviour
                     }
                     break;
                     
+                case "drone_camera_frame":
+                    Debug.Log("[Unity] Drone Camera Frame Data: " + JsonUtility.ToJson(data));
+                    lock (mainThreadQueue)
+                    {
+                        mainThreadQueue.Enqueue(() =>
+                        {
+                            UpdateDetections(data.detections);
+                        });
+                    }
+                    break;
 
                 default:
                     Debug.LogWarning("Unknown message type received.");
@@ -272,7 +291,11 @@ public class WebSocketClient : MonoBehaviour
         }
     }
 
-
+    private void UpdateDetections(List<Detection> detections)
+    {
+        latestDetections = detections;
+        Debug.Log($"[Unity] Updated detections: {JsonUtility.ToJson(detections)}");
+    }
 
 
     private void HandleCameraAlert(Vector3 alertPosition)
@@ -463,8 +486,45 @@ public class WebSocketClient : MonoBehaviour
 
     public void HandleDroneAlert(Vector3 alertPosition)
     {
-        Debug.Log($"[Unity] Drone Alert Received! Guard alerted");
-        
+        if (isDroneControlled)
+        {
+            Debug.Log("[Unity] Alert received during guard control. Triggering alarm system.");
+
+                // Activa el sistema de alarmas
+                HandleAlertSystem();
+
+            
+                lock (mainThreadQueue)
+                {
+                    mainThreadQueue.Enqueue(() =>
+                    {
+                        // Libera el control manual del dron
+                        isDroneControlled = false;
+
+                        // Envía el dron a la estación de aterrizaje
+                        StopAllCoroutines();
+                        StartCoroutine(MoveDrone(landingStation, () =>
+                        {
+                            Debug.Log("[Unity] Drone returned to landing station after alert.");
+                        }));
+
+                        // Notifica al servidor que el guardia ha terminado el control
+                        if (ws.ReadyState == WebSocketState.Open)
+                        {
+                            var message = new Message
+                            {
+                                type = "guard_control",
+                                status = "RELEASE_CONTROL"
+                            };
+                            string jsonMessage = JsonUtility.ToJson(message);
+                            ws.Send(jsonMessage);
+                        }
+                    });
+                }
+            return;
+        }
+
+        Debug.Log($"[Unity] Drone Alert Received! Guard alerted.");
         lock (mainThreadQueue)
         {
             mainThreadQueue.Enqueue(() =>
@@ -487,8 +547,7 @@ public class WebSocketClient : MonoBehaviour
 
                 StartCoroutine(MoveGuard(controlStation, () =>
                 {
-                    Debug.Log("[Unity] Guard arrived to control station. Starting drone control...");
-
+                    Debug.Log("[Unity] Guard arrived at control station. Starting drone control...");
                     StartCoroutine(HandleDroneInvestigationLap(() =>
                     {
                         Debug.Log("[Unity] Guard finished drone control. Resuming patrol...");
@@ -499,6 +558,8 @@ public class WebSocketClient : MonoBehaviour
             });
         }
     }
+
+
 
     private IEnumerator HandleDroneInvestigationLap(Action onArrival = null)
     {
@@ -512,40 +573,105 @@ public class WebSocketClient : MonoBehaviour
         };
 
         isInvestigating = true;
+        Debug.Log("[Unity] Starting guard-controlled drone investigation lap.");
 
-        foreach (Vector3 waypoint in investigationRoute)
+        bool scavengerDetected = false;
+
+        while (!scavengerDetected)
         {
-            yield return StartCoroutine(MoveDrone(waypoint, () =>
+            for (int i = 0; i < investigationRoute.Length; i++)
             {
-                StartCoroutine(InvestigateArea(() =>
+                Vector3 target = investigationRoute[i];
+                Debug.Log($"[Unity] Moving to waypoint {i + 1}: {target}");
+                yield return StartCoroutine(MoveDrone(target, () =>
                 {
-                    Debug.Log("[Unity] Investigation finished...");
-                    HandleAlertSystem(); //Alert System Corroutine
-                    currentWaypointIndex = 0;
-                    isInvestigating = false;
+                    Debug.Log("[Unity] Drone reached waypoint. Capturing frame for analysis.");
+                    byte[] droneImageBytes = CaptureDroneCameraFrame();
+                    SendDroneCameraFrame(droneImageBytes);
                 }));
-            }));
+
+                yield return new WaitForSeconds(2f);
+
+                // Verifica si hay detección después de cada punto
+                if (CheckForDetection())
+                {
+                    Debug.Log("[Unity] Scavenger detected during guard investigation! Triggering alert system.");
+                    
+                    // Activa el sistema de alarmas
+                    HandleAlertSystem();
+
+                    // Notifica al servidor sobre la detección
+                    if (ws.ReadyState == WebSocketState.Open)
+                    {
+                        var message = new Message
+                        {
+                            type = "drone_alert",
+                            status = "DETECTED",
+                            detection = latestDetections[0]
+                        };
+                        string jsonMessage = JsonUtility.ToJson(message);
+                        ws.Send(jsonMessage);
+                    }
+
+                    // Cambia el estado para detener el bucle
+                    scavengerDetected = true;
+                    break;
+                }
+            }
+
+            if (!scavengerDetected)
+            {
+                Debug.Log("[Unity] No scavenger detected. Restarting investigation route...");
+            }
         }
 
-        // After investigation lap, return to landing station
+        Debug.Log("[Unity] Investigation complete. Returning to landing station.");
         yield return StartCoroutine(MoveDrone(landingStation, () =>
         {
-            // Send message that investigation is complete
-            if (ws.ReadyState == WebSocketState.Open)
-            {
-                var message = new Message
-                {
-                    type = "guard_control",
-                    status = "RELEASE_CONTROL"
-                };
-
-                string jsonMessage = JsonUtility.ToJson(message);
-                ws.Send(jsonMessage);
-
-                onArrival?.Invoke();
-            }
+            Debug.Log("[Unity] Drone has returned to landing station.");
         }));
+
+        isInvestigating = false;
+
+        // Notifica que el guardia ha liberado el control del dron
+        if (ws.ReadyState == WebSocketState.Open)
+        {
+            var message = new Message
+            {
+                type = "guard_control",
+                status = "RELEASE_CONTROL"
+            };
+
+            string jsonMessage = JsonUtility.ToJson(message);
+            ws.Send(jsonMessage);
+        }
+
+        onArrival?.Invoke();
     }
+
+
+
+
+    private bool CheckForDetection()
+    {
+        if (latestDetections != null && latestDetections.Count > 0)
+        {
+            foreach (var detection in latestDetections)
+            {
+                if (detection.className == "thiefs" && detection.confidence > 0.8f)
+                {
+                    Debug.Log("[Unity] High-confidence scavenger detection confirmed.");
+                    return true;
+                }
+            }
+        }
+
+        Debug.Log("[Unity] No high-confidence detections found.");
+        return false;
+    }
+
+
+
 
     private IEnumerator MoveGuard(Vector3 target, Action onArrival)
     {
@@ -605,10 +731,19 @@ public class WebSocketClient : MonoBehaviour
     public void HandleAlertSystem()
     {
         Debug.Log("Drone alert received - initiating warning lights");
-        // Start the coroutine for flashing red lights
-        // Using 5 seconds duration and 0.5 second interval as example values
-        StartCoroutine(FlickerLightsRed(5f, 0.5f));
+
+        // Asegúrate de encontrar el GameController y activar la alarma.
+        GameController gameController = FindObjectOfType<GameController>();
+        if (gameController != null)
+        {
+            gameController.TriggerGeneralAlarm(true); // Activa la alarma como una amenaza real
+        }
+        else
+        {
+            Debug.LogError("GameController not found! Cannot trigger alarm.");
+        }
     }
+
 
     private IEnumerator FlickerLightsRed(float duration, float interval)
     {
@@ -648,26 +783,27 @@ public class WebSocketClient : MonoBehaviour
     [Serializable]
     private class Message
     {
-        public string type;
-        public int camera_id;
-        public string image;
-        public Vector3 position;
-        public string status;
-        public string action;
-        public List<Detection> detections;
+        public string type; // Message type
+        public int camera_id; // Camera ID for camera messages
+        public string image; // Base64 encoded image string
+        public Vector3 position; // Position data for alerts
+        public string status; // Status (e.g., "ALERT" or "RELEASE_CONTROL")
+        public string action; // Action performed (optional)
+        public List<Detection> detections; // List of detections (for image analysis)
+        public Detection detection; // Single detection for alerts
     }
 
-    [Serializable]
-    private class Detection
-    {
-        public float x;
-        public float y;
-        public float width;
-        public float height;
-        public float confidence;
-        public string className;
-        public int classId;
-        public string detectionId;
-    }
-
+[Serializable]
+private class Detection
+{
+    public float x;
+    public float y;
+    public float width;
+    public float height;
+    public float confidence;
+    public string className;
+    public int classId;
+    public string detectionId;
 }
+}
+

@@ -71,6 +71,22 @@ async def handler(websocket):
                     await personnel.handle_guard_control(websocket, drone)
                 elif data.get("status") == "RELEASE_CONTROL":
                     await personnel.release_control_of_drone()
+            elif message_type == "guard_control_detection":
+                detection = data.get("detection")
+                print(f"[Server] Detection during guard control: {detection}")
+                if detection and detection.get("confidence", 0) > 0.8:
+                    alert_message = {
+                        "type": "alarm",
+                        "status": "ALERT",
+                        "position": detection.get("world_position", None),
+                        "confidence": detection.get("confidence", 0)
+                    }
+                    print(f"[Server] High-confidence detection during guard control. Sending alert: {alert_message}")
+                    await websocket.send(json.dumps(alert_message))
+                else:
+                    print("[Server] Detection during guard control did not meet confidence threshold.")
+
+
 
     except Exception as e:
         print(f"[Server] Error: {e}")

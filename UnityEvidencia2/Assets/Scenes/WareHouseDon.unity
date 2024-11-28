@@ -11310,11 +11310,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a5d1e5dcdacf0924cbe56368146b10c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alertTextObject: {fileID: 0}
+  alertTextObject: {fileID: 2078171185}
   alertDisplayTime: 3
-  alarmLights: []
+  alarmLights:
+  - {fileID: 1262573422}
+  - {fileID: 1332415335}
+  - {fileID: 853862340}
+  - {fileID: 637380202}
   alarmColor: {r: 1, g: 0, b: 0, a: 1}
-  alarmBlinkRate: 1
+  alarmBlinkRate: 10
 --- !u!4 &1716115452
 Transform:
   m_ObjectHideFlags: 0

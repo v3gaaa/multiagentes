@@ -83,3 +83,18 @@ class Personnel:
     def get_success_rate(self):
         """Get the personnel's success rate"""
         return self.success_metrics['assessment_accuracy']
+    
+    async def handle_guard_control_detection(self, websocket, detection):
+        print(f"[Personnel] Handling detection during guard control: {detection}")
+        if detection and detection.get("confidence", 0) > 0.8:
+            print("ALERT! Scavenger detected during guard control. Activating alarm.")
+            alert_message = {
+                "type": "alarm",
+                "status": "GUARD_CONTROL_ALERT",
+                "position": detection.get("world_position", None),
+                "confidence": detection.get("confidence", 0)
+            }
+            # Aquí puedes enviar la alerta al cliente (Unity) o procesarla como desees
+            await websocket.send(json.dumps(alert_message))
+        else:
+            print("No valid detection during guard control.")
