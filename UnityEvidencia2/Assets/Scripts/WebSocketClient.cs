@@ -99,7 +99,7 @@ public class WebSocketClient : MonoBehaviour
 
         // Set initial positions
         drone.transform.position = landingStation;
-        guard.transform.position = new Vector3(11, 0, 8);
+        guard.transform.position = new Vector3(21, 0, 3);
     }
 
     private void InitializeCameras()

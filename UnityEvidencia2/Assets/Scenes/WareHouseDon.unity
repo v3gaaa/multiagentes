@@ -5572,6 +5572,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 3
   catchDistance: 2
+  controlStationStayDuration: 10
 --- !u!195 &783774075
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -14548,15 +14549,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 11.001
+      value: 21
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.365
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 8.43
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 4693764197385643841, guid: cf21e8e92ad31c64abdd12af9d137213, type: 3}
       propertyPath: m_LocalRotation.w
