@@ -1,0 +1,7 @@
+asyncio
+websockets
+opencv-python
+numpy
+pathlib
+ultralytics
+roboflow
