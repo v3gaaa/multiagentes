@@ -3,6 +3,7 @@ import websockets
 import json
 import os
 import sys
+import matplotlib.pyplot as plt
 
 # Añadir el directorio raíz del proyecto al Python Path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,6 +14,7 @@ from Agents.Camera import Camera
 from Agents.Drone import Drone
 from Agents.Personnel import Personnel
 from Agents.Environment import Environment
+from successMetrics.metrics_tracker import SuccessMetricsTracker
 
 # Inicialización de los agentes y entorno
 cameras = [
@@ -96,10 +98,98 @@ async def start_server():
     """
     Inicia el servidor WebSocket.
     """
-    print("Starting WebSocket server...")
-    async with websockets.serve(handler, "localhost", 8765):
-        print("Server started")
-        await asyncio.Future()  # Mantiene el servidor corriendo
+    try:
+        print("Starting WebSocket server...")
+        async with websockets.serve(handler, "localhost", 8765):
+            print("Server started")
+            await asyncio.Future()  # Mantiene el servidor corriendo
+    
+    except asyncio.CancelledError:
+        print("Server shut down.")
+    
+    finally: 
+        generate_combined_metrics_report() 
+
+
+def generate_combined_metrics_report():
+    """Generate comprehensive metrics reports for all agents"""
+    output_dir = 'metrics_reports'
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate reports for each agent
+    camera_reports = [camera.metrics_tracker.generate_metrics_report() for camera in cameras]
+    drone_report = drone.metrics_tracker.generate_metrics_report()
+    personnel_report = personnel.metrics_tracker.generate_metrics_report()
+
+    # Combine metrics
+    combined_metrics = {
+        'Camera': cameras[0].metrics_tracker.get_metrics(),
+        'Drone': drone.metrics_tracker.get_metrics(),
+        'Personnel': personnel.metrics_tracker.get_metrics()
+    }
+
+    # Generate a text summary
+    summary_path = os.path.join(output_dir, 'combined_metrics_summary.txt')
+    with open(summary_path, 'w') as f:
+        f.write("Security system success metrics summary\n")
+        f.write("===========================================\n\n")
+        for agent, metrics in combined_metrics.items():
+            f.write(f"{agent} Agent metrics:\n")
+            for key, value in metrics.items():
+                f.write(f"  {key.replace('_', ' ').title()}: {value}\n")
+            f.write("\n")
+
+    # Print confirmation
+    print("Metrics reports generated:")
+    print(f"Camera reports: {camera_reports}")
+    print(f"Drone report: {drone_report}")
+    print(f"Personnel report: {personnel_report}")
+    print(f"Combined summary: {summary_path}")
+
+    # Generate a combined visualization
+    try:
+        plt.figure(figsize=(15, 10))
+        plt.suptitle("Combined security system success metrics summary", fontsize=16)
+
+        # Detection accuracy subplot
+        plt.subplot(2, 2, 1)
+        for name, metrics in combined_metrics.items():
+            plt.bar(name, metrics['detection_accuracy'], label=name)
+        plt.title('Detection accuracy comparison')
+        plt.ylabel('Accuracy')
+        plt.ylim(0, 1)
+
+        # Investigation efficiency subplot
+        plt.subplot(2, 2, 2)
+        for name, metrics in combined_metrics.items():
+            plt.bar(name, metrics['investigation_efficiency'], label=name)
+        plt.title('Investigation efficiency comparison')
+        plt.ylabel('Efficiency')
+        plt.ylim(0, 1)
+
+        # Total alerts subplot
+        plt.subplot(2, 2, 3)
+        for name, metrics in combined_metrics.items():
+            plt.bar(name, metrics['total_alerts'], label=name)
+        plt.title('Total alerts by agent')
+        plt.ylabel('Number of alerts')
+
+        # True positives subplot
+        plt.subplot(2, 2, 4)
+        for name, metrics in combined_metrics.items():
+            plt.bar(name, metrics['true_positives'], label=name)
+        plt.title('True positive detections by agent')
+        plt.ylabel('True positive count')
+
+        plt.tight_layout()
+        combined_plot_path = os.path.join(output_dir, 'combined_system_metrics.png')
+        plt.savefig(combined_plot_path)
+        plt.close()
+
+        print(f"Combined system metrics plot: {combined_plot_path}")
+    except Exception as e:
+        print(f"Error generating combined plot: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(start_server())

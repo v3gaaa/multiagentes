@@ -5,3 +5,4 @@ numpy
 pathlib
 ultralytics
 roboflow
+matplotlib

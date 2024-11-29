@@ -1,16 +1,14 @@
 import json
 import asyncio
+import base64
+
+from successMetrics.metrics_tracker import SuccessMetricsTracker
 
 class Personnel:
     def __init__(self, control_station):
         self.control_station = control_station
         self.drone_control = False
-        self.success_metrics = {
-            'alerts_handled': 0,
-            'correct_assessments': 0,
-            'assessment_accuracy': 0.0,
-            'manual_control_instances': 0
-        }
+        self.metrics_tracker = SuccessMetricsTracker(name="Personnel")
 
     async def handle_guard_control(self, websocket, drone):
         """
@@ -47,18 +45,21 @@ class Personnel:
 
     def handle_alert(self, websocket, alert_data):
         print(f"Handling alert: {alert_data}")
-        if self.assess_threat(alert_data["anomalies"]):
+        threat_detected = self.assess_threat(alert_data["anomalies"])
+
+        if threat_detected:
             print("ALERT! Scavenger detected. Sending alarm signal.")
             alert_message = {
                 "type": "alarm",
                 "status": "ALERT",
                 "position": alert_data.get("position", None)
             }
-            self.record_assessment(True)
+            self.metrics_tracker.record_detection(is_true_positive=True)
             websocket.send(json.dumps(alert_message))
         else:
             print("False alarm. No scavenger detected.")
             alert_message = {"type": "alarm", "status": "FALSE_ALARM"}
+            self.metrics_tracker.record_detection(is_true_positive=False)
             websocket.send(json.dumps(alert_message))
 
     def assess_threat(self, anomalies):
@@ -67,22 +68,6 @@ class Personnel:
             if anomaly["class"] == "thief" and anomaly["confidence"] > 0.8:
                 return True
         return False
-    
-    def record_assessment(self, was_correct):
-        """Record the success/failure of a threat assessment"""
-        self.success_metrics['alerts_handled'] += 1
-        if was_correct:
-            self.success_metrics['correct_assessments'] += 1
-        
-        if self.success_metrics['alerts_handled'] > 0:
-            self.success_metrics['assessment_accuracy'] = (
-                self.success_metrics['correct_assessments'] / 
-                self.success_metrics['alerts_handled']
-            )
-
-    def get_success_rate(self):
-        """Get the personnel's success rate"""
-        return self.success_metrics['assessment_accuracy']
     
     async def handle_guard_control_detection(self, websocket, detection):
         print(f"[Personnel] Handling detection during guard control: {detection}")
@@ -95,6 +80,22 @@ class Personnel:
                 "confidence": detection.get("confidence", 0)
             }
             # Aquí puedes enviar la alerta al cliente (Unity) o procesarla como desees
+            self.metrics_tracker.record_investigation(was_successful=True)
             await websocket.send(json.dumps(alert_message))
         else:
             print("No valid detection during guard control.")
+            self.metrics_tracker.record_investigation(was_successful=False)
+
+    async def periodic_metrics_report(self, websocket):
+       """Generate and send metrics report periodically"""
+       report_path = self.metrics_tracker.generate_metrics_report()
+      
+       with open(report_path, 'rb') as report_file:
+           report_data = base64.b64encode(report_file.read()).decode('utf-8')
+      
+       await websocket.send(json.dumps({
+           "type": "personnel_metrics_report",
+           "report_data": report_data,
+           "metrics": self.metrics_tracker.get_metrics()
+       }))
+

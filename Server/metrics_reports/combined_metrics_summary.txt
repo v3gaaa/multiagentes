@@ -1,0 +1,30 @@
+Security system success metrics summary
+===========================================
+
+Camera Agent metrics:
+  Total Alerts: 1
+  True Positives: 0
+  False Positives: 1
+  Detection Accuracy: 0.0
+  Investigation Efficiency: 0.0
+  Investigation Count: 0
+  Successful Investigations: 0
+
+Drone Agent metrics:
+  Total Alerts: 2
+  True Positives: 0
+  False Positives: 2
+  Detection Accuracy: 0.0
+  Investigation Efficiency: 0.0
+  Investigation Count: 2
+  Successful Investigations: 0
+
+Personnel Agent metrics:
+  Total Alerts: 0
+  True Positives: 0
+  False Positives: 0
+  Detection Accuracy: 0.0
+  Investigation Efficiency: 0.0
+  Investigation Count: 0
+  Successful Investigations: 0
+

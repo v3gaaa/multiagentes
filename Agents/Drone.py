@@ -2,6 +2,7 @@ import json
 import base64
 from YOLO.main import detect_anomalies
 import time
+from successMetrics.metrics_tracker import SuccessMetricsTracker
 
 class Drone:
     def __init__(self, position, patrol_route, boundaries):
@@ -10,6 +11,7 @@ class Drone:
         self.current_target = None
         self.investigating = False
         self.confidence_threshold = 0.7
+        self.metrics_tracker = SuccessMetricsTracker(name="Drone")
         self.boundaries = boundaries  # (x_min, x_max, y_min, y_max, z_min, z_max)
 
     def is_within_boundaries(self, position):
@@ -78,6 +80,7 @@ class Drone:
         ]
 
         if high_confidence_detections:
+            self.metrics_tracker.record_detection(is_true_positive=True)
             primary_detection = max(high_confidence_detections, key=lambda x: x["confidence"])
             alert_message = {
                 "type": "drone_alert",
@@ -87,7 +90,25 @@ class Drone:
             }
             print(f"[Drone] High-confidence detection found. Sending alert: {alert_message}")
             await websocket.send(json.dumps(alert_message))
+            self.metrics_tracker.record_investigation(was_successful=True)
+
         else:
             print("[Drone] No high-confidence detections found.")
+            self.metrics_tracker.record_detection(is_true_positive=False)
+            self.metrics_tracker.record_investigation(was_successful=False)
 
         self.investigating = False
+
+    async def periodic_metrics_report(self, websocket):
+       """Generate and send metrics report periodically"""
+       report_path = self.metrics_tracker.generate_metrics_report()
+      
+       # Send metrics via websocket
+       with open(report_path, 'rb') as report_file:
+           report_data = base64.b64encode(report_file.read()).decode('utf-8')
+      
+       await websocket.send(json.dumps({
+           "type": "metrics_report",
+           "report_data": report_data,
+           "metrics": self.metrics_tracker.get_metrics()
+       }))

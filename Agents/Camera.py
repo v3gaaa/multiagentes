@@ -2,7 +2,8 @@ import base64
 import json
 import time
 from YOLO.main import detect_anomalies
-from utils.PositionUtils import PositionUtils  # Asegúrate de importar el módulo correcto
+from utils.PositionUtils import PositionUtils  
+from successMetrics.metrics_tracker import SuccessMetricsTracker
 
 class Camera:
     def __init__(self, camera_id, position, confidence_threshold=0.7):
@@ -10,6 +11,7 @@ class Camera:
         self.position = position
         self.confidence_threshold = confidence_threshold
         self.valid_classes = ["thiefs"]
+        self.metrics_tracker = SuccessMetricsTracker(name=f"Camera {camera_id}")
 
     async def process_image(self, image_data, websocket):
         """Process incoming camera frames and detect anomalies."""
@@ -39,10 +41,28 @@ class Camera:
                 "timestamp": time.time()
             }
 
+            self.metrics_tracker.record_detection(is_true_positive=True)
+
             if alert_data["position"] is not None:  # Evitar enviar datos sin `world_position`
                 print(f"[Camera] Camera {self.camera_id} sending alert: {alert_data}")
                 await websocket.send(json.dumps(alert_data))
             else:
                 print(f"[Camera] Failed to calculate world_position for detection: {detection}")
-
+        else:
+            self.metrics_tracker.record_detection(is_true_positive=False)
+            
         return high_confidence_detections
+    
+    async def periodic_metrics_report(self, websocket):
+       """Generate and send metrics report periodically"""
+       report_path = self.metrics_tracker.generate_metrics_report()
+      
+       # Send metrics via websocket
+       with open(report_path, 'rb') as report_file:
+           report_data = base64.b64encode(report_file.read()).decode('utf-8')
+      
+       await websocket.send(json.dumps({
+           "type": "metrics_report",
+           "report_data": report_data,
+           "metrics": self.metrics_tracker.get_metrics()
+       }))
