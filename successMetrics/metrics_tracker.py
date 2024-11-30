@@ -147,8 +147,6 @@ class SuccessMetricsTracker:
         
         plt.tight_layout()
         
-        
-        # Save report
         report_path = os.path.join(output_dir, f'{self.name}_metrics_report.png')
         plt.savefig(report_path)
         plt.close()

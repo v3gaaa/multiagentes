@@ -3,28 +3,28 @@ Security system success metrics summary
 
 Camera Agent metrics:
   Total Alerts: 1
-  True Positives: 0
-  False Positives: 1
-  Detection Accuracy: 0.0
+  True Positives: 1
+  False Positives: 0
+  Detection Accuracy: 1.0
   Investigation Efficiency: 0.0
   Investigation Count: 0
   Successful Investigations: 0
 
 Drone Agent metrics:
-  Total Alerts: 2
-  True Positives: 0
-  False Positives: 2
-  Detection Accuracy: 0.0
-  Investigation Efficiency: 0.0
-  Investigation Count: 2
-  Successful Investigations: 0
+  Total Alerts: 5
+  True Positives: 2
+  False Positives: 3
+  Detection Accuracy: 0.4
+  Investigation Efficiency: 0.4
+  Investigation Count: 5
+  Successful Investigations: 2
 
 Personnel Agent metrics:
   Total Alerts: 0
   True Positives: 0
   False Positives: 0
   Detection Accuracy: 0.0
-  Investigation Efficiency: 0.0
-  Investigation Count: 0
-  Successful Investigations: 0
+  Investigation Efficiency: 1.0
+  Investigation Count: 1
+  Successful Investigations: 1
 

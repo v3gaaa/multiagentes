@@ -16,10 +16,10 @@ class Personnel:
         and initiating a drone investigation lap
         """
         print("[Personnel] Guard taking control of the drone for investigation")
-        
+
+        self.metrics_tracker.record_investigation(was_successful=True)
         self.drone_control = True
-        
-        # Define an investigation route that covers the warehouse area
+
         investigation_route = [
             {"x": 4, "y": 8, "z": 3},
             {"x": 14, "y": 8, "z": 15},
@@ -46,6 +46,7 @@ class Personnel:
     def handle_alert(self, websocket, alert_data):
         print(f"Handling alert: {alert_data}")
         threat_detected = self.assess_threat(alert_data["anomalies"])
+        self.metrics_tracker.record_investigation(was_successful=threat_detected)
 
         if threat_detected:
             print("ALERT! Scavenger detected. Sending alarm signal.")
@@ -64,7 +65,6 @@ class Personnel:
 
     def assess_threat(self, anomalies):
         for anomaly in anomalies:
-            # Check if the detected object is a scavenger with high confidence
             if anomaly["class"] == "thief" and anomaly["confidence"] > 0.8:
                 return True
         return False
@@ -79,7 +79,7 @@ class Personnel:
                 "position": detection.get("world_position", None),
                 "confidence": detection.get("confidence", 0)
             }
-            # Aquí puedes enviar la alerta al cliente (Unity) o procesarla como desees
+
             self.metrics_tracker.record_investigation(was_successful=True)
             await websocket.send(json.dumps(alert_message))
         else:
@@ -98,4 +98,3 @@ class Personnel:
            "report_data": report_data,
            "metrics": self.metrics_tracker.get_metrics()
        }))
-
